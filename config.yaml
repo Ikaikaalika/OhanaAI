@@ -1,0 +1,49 @@
+# OhanaAI Configuration
+
+# Model Architecture
+model:
+  node_features: 128
+  hidden_dim: 256
+  num_heads: 4
+  num_layers: 3
+  dropout: 0.1
+  edge_types: 4  # parent->child, child->parent, spouse, sibling
+
+# Training
+training:
+  learning_rate: 0.001
+  batch_size: 32
+  epochs: 100
+  patience: 5
+  weight_decay: 0.0001
+  validation_split: 0.2
+
+# Data Processing
+data:
+  min_age_diff: 12  # minimum years between parent and child
+  max_age_diff: 70  # maximum years between parent and child
+  date_tolerance: 5  # years tolerance for birth/death date matching
+  name_similarity_threshold: 0.8
+  max_graph_size: 10000  # maximum nodes per graph for batching
+
+# Paths
+paths:
+  checkpoints: "checkpoints/"
+  logs: "logs/"
+  outputs: "outputs/"
+  models: "checkpoints/ohana_model.npz"
+
+# GUI
+gui:
+  window_width: 1200
+  window_height: 800
+  canvas_width: 800
+  canvas_height: 600
+  confidence_threshold: 0.5
+  max_predictions: 5
+
+# Logging
+logging:
+  level: "INFO"
+  format: "%(asctime)s - %(name)s - %(levelname)s - %(message)s"
+  file: "logs/ohana_ai.log"
