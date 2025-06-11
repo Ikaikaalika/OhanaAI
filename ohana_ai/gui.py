@@ -295,21 +295,48 @@ class OhanaAIGUI:
     
     def _load_gedcom_files(self):
         """Load GEDCOM files dialog."""
-        files = filedialog.askopenfilenames(
-            title="Select GEDCOM Files",
-            filetypes=[("GEDCOM files", "*.ged *.gedcom"), ("All files", "*.*")]
-        )
-        
-        for file in files:
-            if file not in self.gedcom_files:
-                self.gedcom_files.append(file)
-                self.file_listbox.insert(tk.END, os.path.basename(file))
-        
-        self._update_status(f"Loaded {len(files)} GEDCOM files")
-        
-        # Auto-parse files
-        if files:
-            self._parse_gedcom_files()
+        try:
+            print("Opening file dialog...")  # Debug print
+            files = filedialog.askopenfilenames(
+                title="Select GEDCOM Files",
+                filetypes=[("GEDCOM files", "*.ged *.gedcom *.txt"), ("All files", "*.*")]
+            )
+            print(f"Selected files: {files}")  # Debug print
+            
+            # Create uploads directory if it doesn't exist
+            uploads_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "uploads")
+            os.makedirs(uploads_dir, exist_ok=True)
+            
+            for file in files:
+                if file not in self.gedcom_files:
+                    # Copy file to uploads directory
+                    import shutil
+                    filename = os.path.basename(file)
+                    dest_path = os.path.join(uploads_dir, filename)
+                    
+                    # Handle duplicate filenames by adding a number
+                    counter = 1
+                    base_name, ext = os.path.splitext(filename)
+                    while os.path.exists(dest_path):
+                        new_filename = f"{base_name}_{counter}{ext}"
+                        dest_path = os.path.join(uploads_dir, new_filename)
+                        counter += 1
+                    
+                    shutil.copy2(file, dest_path)
+                    print(f"Copied {file} to {dest_path}")
+                    
+                    # Use the copied file path
+                    self.gedcom_files.append(dest_path)
+                    self.file_listbox.insert(tk.END, os.path.basename(dest_path))
+            
+            self._update_status(f"Loaded and saved {len(files)} GEDCOM files to uploads folder")
+            
+            # Auto-parse files
+            if files:
+                self._parse_gedcom_files()
+        except Exception as e:
+            print(f"Error in file dialog: {e}")  # Debug print
+            messagebox.showerror("Error", f"Failed to open file dialog: {str(e)}")
     
     def _remove_selected_file(self):
         """Remove selected file from list."""
@@ -327,17 +354,22 @@ class OhanaAIGUI:
         
         def parse_task():
             try:
+                import traceback
                 all_individuals = {}
                 all_families = {}
                 
                 for file in self.gedcom_files:
+                    print(f"Parsing file: {file}")  # Debug
                     individuals, families = parse_gedcom_file(file)
                     all_individuals.update(individuals)
                     all_families.update(families)
+                    print(f"Parsed {len(individuals)} individuals, {len(families)} families from {file}")  # Debug
                 
                 return ('parse_complete', (all_individuals, all_families))
             except Exception as e:
-                return ('error', f"Error parsing GEDCOM files: {str(e)}")
+                error_msg = f"Error parsing GEDCOM files: {str(e)}\n\nFull traceback:\n{traceback.format_exc()}"
+                logger.error(error_msg)
+                return ('error', error_msg)
         
         self._run_task(parse_task, "Parsing GEDCOM files...")
     
@@ -349,12 +381,15 @@ class OhanaAIGUI:
         
         def train_task():
             try:
+                import traceback
                 trainer = OhanaAITrainer()
                 trainer.prepare_data(self.individuals, self.families)
                 training_history = trainer.train()
                 return ('train_complete', (trainer, training_history))
             except Exception as e:
-                return ('error', f"Error training model: {str(e)}")
+                error_msg = f"Error training model: {str(e)}\n\nFull traceback:\n{traceback.format_exc()}"
+                logger.error(error_msg)
+                return ('error', error_msg)
         
         self._run_task(train_task, "Training model...")
     
