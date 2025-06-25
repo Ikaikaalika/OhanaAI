@@ -1,260 +1,251 @@
-# OhanaAI - Genealogical Parent Prediction
+# OhanaAI 🌺
 
-A complete Graph Neural Network system for predicting missing parents in genealogical GEDCOM files using Apple's MLX framework, integrated with a Tkinter GUI for user interaction.
+**AI-Powered Genealogical Parent Prediction**
 
-## Features
+A sophisticated Graph Neural Network system that predicts missing parents in genealogical GEDCOM files using Apple's MLX framework. Combines cutting-edge machine learning with an intuitive GUI for genealogy research.
 
-- **GEDCOM Parser**: Parse .gedcom genealogy files extracting individual records and family relationships
-- **Graph Neural Network**: Graph Attention Network (GAT) with edge-type aware message passing using MLX
-- **Parent Prediction**: Binary classifier for parent-child relationships with confidence scoring
-- **Deduplication System**: Detect and merge duplicate individuals across multiple GEDCOM files
-- **Tkinter GUI**: User-friendly interface for file loading, visualization, and predictions
-- **CLI Interface**: Command-line tools for training, prediction, and analysis
+[![GitHub](https://img.shields.io/badge/GitHub-ikaikaalika%2Fohanaai-blue?logo=github)](https://github.com/ikaikaalika/ohanaai)
+[![Python](https://img.shields.io/badge/Python-3.8%2B-blue?logo=python)](https://python.org)
+[![MLX](https://img.shields.io/badge/MLX-Apple%20Silicon-orange?logo=apple)](https://github.com/ml-explore/mlx)
 
-## Architecture
+## ✨ Features
 
-### Core Components
+- 🧬 **GEDCOM Parser**: Parse genealogy files extracting individual records and family relationships
+- 🧠 **Graph Neural Network**: Graph Attention Network (GAT) with edge-type aware message passing
+- 👨‍👩‍👧‍👦 **Parent Prediction**: Binary classifier for parent-child relationships with confidence scoring
+- 🔍 **Smart Deduplication**: Detect and merge duplicate individuals across multiple GEDCOM files
+- 💻 **Modern GUI**: User-friendly Tkinter interface for visualization and predictions
+- ⚡ **CLI Tools**: Command-line interface for training, prediction, and analysis
 
-- **GEDCOM Parser** (`gedcom_parser.py`): Parse GEDCOM files into Individual/Family dataclasses
-- **Graph Builder** (`graph_builder.py`): Convert family trees to MLX graph format with node features and edges
-- **GNN Model** (`gnn_model.py`): GAT layers and OhanaAI model implementation in MLX
-- **Trainer** (`trainer.py`): Training loop with MLX optimizers and early stopping
-- **Predictor** (`predictor.py`): Inference and parent prediction logic with constraint validation
-- **Deduplication** (`data_deduplication.py`): Handle duplicates across files with similarity scoring
-- **GUI** (`gui.py`): Tkinter interface for visualization and user interaction
+## 🚀 Quick Start
 
-### Model Architecture
-
-- **Graph Attention Network (GAT)** with multi-head attention (4 heads)
-- **Edge-type aware message passing** for different relationship types
-- **3-layer GNN** with hidden dimensions of 256
-- **Node embeddings** of dimension 128
-- **Parent prediction head** with binary classification
-
-## Installation
-
-### Requirements
+### Prerequisites
 
 - Python 3.8+
-- Apple Silicon Mac (for MLX) or compatible system
-- MLX framework
+- Apple Silicon Mac (recommended for MLX optimization)
+- GEDCOM genealogy files
 
-### Setup
+### Installation
 
-1. Clone the repository:
+1. **Clone the repository**:
 ```bash
-git clone <repository-url>
-cd OhanaAI
+git clone https://github.com/ikaikaalika/ohanaai.git
+cd ohanaai
 ```
 
-2. Install dependencies:
+2. **Install dependencies**:
 ```bash
 pip install -r requirements.txt
 ```
 
-3. Install MLX (if not already installed):
+3. **Launch the GUI**:
 ```bash
-pip install mlx
+python -m ohana_ai.main gui
 ```
 
-## Usage
+## 🖥️ Usage
 
 ### GUI Mode (Recommended)
 
-Launch the graphical interface:
+Launch the graphical interface for the easiest experience:
 
 ```bash
 python -m ohana_ai.main gui
 ```
 
-The GUI provides:
-- File loading dialog for GEDCOM files
-- Interactive training and prediction controls
-- Results visualization with confidence scores
-- Duplicate detection and review interface
-- Export options for predictions
+**Features:**
+- 📁 Interactive file loading for GEDCOM files
+- 🎯 One-click training and prediction
+- 📊 Results visualization with confidence scores
+- 🔄 Duplicate detection and review interface
+- 📤 Export predictions as CSV or GEDCOM
 
 ### Command Line Interface
 
-#### Show GEDCOM file information:
+#### View GEDCOM Information
 ```bash
-python -m ohana_ai.main info family1.ged family2.ged
+python -m ohana_ai.main info family.ged
 ```
 
-#### Train a model:
+#### Train a Model
 ```bash
 python -m ohana_ai.main train family1.ged family2.ged --epochs 50
 ```
 
-#### Run predictions:
+#### Generate Predictions
 ```bash
-python -m ohana_ai.main predict family1.ged family2.ged --model checkpoints/ohana_model.npz
+python -m ohana_ai.main predict family.ged --model checkpoints/ohana_model.npz
 ```
 
-#### Detect duplicates:
+#### Detect Duplicates
 ```bash
-python -m ohana_ai.main deduplicate family1.ged family2.ged --threshold 0.9
+python -m ohana_ai.main deduplicate family.ged --threshold 0.9
 ```
 
-## Configuration
+## 🏗️ Architecture
 
-Edit `config.yaml` to customize:
+### Core Components
 
-- **Model parameters**: Hidden dimensions, attention heads, layers
-- **Training settings**: Learning rate, batch size, epochs
-- **Data constraints**: Age differences, date tolerances
-- **Output paths**: Checkpoints, logs, results
+| Component | File | Purpose |
+|-----------|------|---------|
+| **GEDCOM Parser** | `gedcom_parser.py` | Parse GEDCOM files into structured data |
+| **Graph Builder** | `graph_builder.py` | Convert family trees to MLX graph format |
+| **GNN Model** | `gnn_model.py` | Graph Attention Network implementation |
+| **Trainer** | `trainer.py` | Model training with early stopping |
+| **Predictor** | `predictor.py` | Parent prediction with constraint validation |
+| **Deduplication** | `data_deduplication.py` | Smart duplicate detection and merging |
+| **GUI** | `gui.py` | Tkinter user interface |
 
-## Input Data Format
+### Model Architecture
 
-### GEDCOM Files
+- **Graph Attention Network (GAT)** with 4-head multi-attention
+- **Edge-type aware message passing** for different relationship types
+- **3-layer deep architecture** with 256 hidden dimensions
+- **128-dimensional node embeddings**
+- **Binary classification head** for parent prediction
 
-Standard GEDCOM 5.5.1 format with:
+## 📊 Data Format
+
+### Input: GEDCOM Files
+Standard GEDCOM 5.5.1 format supporting:
 - Individual records (`INDI`) with names, dates, places
-- Family records (`FAM`) with parent-child and spouse relationships
-- Proper date formats (e.g., "DD MMM YYYY")
+- Family records (`FAM`) with relationships
+- Proper date formats (e.g., "25 DEC 1850")
 
 ### Node Features
-
-Each individual is represented with:
-- **Gender**: One-hot encoded (M, F, U)
-- **Birth/Death years**: Normalized temporal features
-- **Name statistics**: Character-level and length features
-- **Location features**: Hash-based encoding
-- **Family connectivity**: Number of relationships
+Each person is encoded with:
+- **Demographics**: Gender, birth/death years
+- **Names**: Character-level and statistical features
+- **Geography**: Location hash encoding
+- **Connectivity**: Family relationship counts
 
 ### Edge Types
+- **Parent → Child** (Type 0)
+- **Child → Parent** (Type 1)
+- **Spouse ↔ Spouse** (Type 2)
+- **Sibling ↔ Sibling** (Type 3)
 
-- **0**: Parent → Child
-- **1**: Child → Parent  
-- **2**: Spouse (bidirectional)
-- **3**: Sibling (bidirectional)
+## 🎯 Prediction System
 
-## Output
+### Smart Constraints
+- **Age validation**: Parents 12-70 years older than children
+- **Temporal logic**: Parents alive when child was born
+- **Relationship rules**: No conflicting existing relationships
 
-### Predictions
+### Output
+- **Confidence scores** (0.0 - 1.0)
+- **Age difference analysis**
+- **Constraint validation results**
+- **Export formats**: CSV, enhanced GEDCOM
 
-Generated predictions include:
-- Child and candidate parent information
-- Confidence scores (0.0 - 1.0)
-- Age differences and constraint validation
-- Export formats: CSV, GEDCOM supplement
+## ⚙️ Configuration
 
-### Constraints Validated
+Customize behavior via `config.yaml`:
 
-- **Age constraints**: Parents 12-70 years older than children
-- **Temporal constraints**: Parents alive when child was born
-- **Relationship constraints**: No existing parent-child relationships
+```yaml
+model:
+  hidden_dim: 256
+  num_heads: 4
+  num_layers: 3
 
-## Deduplication
+training:
+  learning_rate: 0.001
+  batch_size: 64
+  epochs: 100
 
-The system can detect and merge duplicate individuals across files using:
-- **Name similarity**: Levenshtein distance and fuzzy matching
-- **Date similarity**: Birth/death year tolerance (±5 years)
-- **Location matching**: Place name normalization and comparison
-- **User confirmation**: GUI interface for reviewing potential merges
+constraints:
+  min_parent_age_diff: 12
+  max_parent_age_diff: 70
+  date_tolerance_years: 5
+```
 
-## Model Training
-
-### Training Process
-
-1. **Data Preparation**: Parse GEDCOM files and build graph representation
-2. **Training Pairs**: Generate positive (true parent-child) and negative pairs
-3. **Contrastive Loss**: Train with class imbalance handling
-4. **Early Stopping**: Validation-based stopping with patience=5 epochs
-5. **Checkpointing**: Save model state every 10 epochs
-
-### Training Data
-
-- Uses existing parent-child relationships as positive examples
-- Generates negative examples with age and temporal constraints
-- 3:1 negative to positive ratio for balanced training
-- Train/validation split: 80/20
-
-## File Structure
+## 📁 Project Structure
 
 ```
-OhanaAI/
+ohanaai/
 ├── ohana_ai/
-│   ├── __init__.py              # Package initialization
-│   ├── gedcom_parser.py         # GEDCOM file parsing
-│   ├── graph_builder.py         # Graph construction
-│   ├── gnn_model.py            # GAT model implementation
-│   ├── trainer.py              # Training pipeline
-│   ├── predictor.py            # Inference logic
-│   ├── data_deduplication.py   # Duplicate handling
-│   ├── gui.py                  # Tkinter interface
-│   └── main.py                 # CLI entry point
-├── config.yaml                 # Configuration file
-├── requirements.txt            # Dependencies
-├── README.md                   # Documentation
-├── logs/                       # Training and inference logs
-├── checkpoints/               # Model checkpoints
-└── outputs/                   # Prediction results
+│   ├── gedcom_parser.py      # GEDCOM file parsing
+│   ├── graph_builder.py      # Graph construction
+│   ├── gnn_model.py         # GAT model (MLX)
+│   ├── trainer.py           # Training pipeline
+│   ├── predictor.py         # Inference engine
+│   ├── data_deduplication.py # Duplicate handling
+│   ├── gui.py               # Tkinter interface
+│   └── main.py              # CLI entry point
+├── config.yaml              # Configuration
+├── requirements.txt         # Dependencies
+├── logs/                    # Training logs
+├── checkpoints/            # Model saves
+├── outputs/               # Results
+└── uploads/              # Input files
 ```
 
-## Example Usage
+## 🧪 Example Workflow
 
-### Basic Workflow
+1. **Load Data**: Import GEDCOM files via GUI or CLI
+2. **Train Model**: Build GNN on your genealogical data
+3. **Generate Predictions**: Find missing parent relationships
+4. **Review Results**: Examine confidence scores and constraints
+5. **Export Findings**: Save as CSV or enhanced GEDCOM
 
-1. **Load GEDCOM files** through GUI or CLI
-2. **Train model** on your genealogical data
-3. **Run predictions** to find missing parents
-4. **Review results** with confidence scores and constraints
-5. **Export predictions** as CSV or GEDCOM supplement
-
-### Advanced Features
-
-- **Batch Processing**: Handle large datasets efficiently
-- **Incremental Training**: Add new data to existing models
-- **Confidence Filtering**: Adjust thresholds for prediction quality
-- **Constraint Validation**: Ensure genealogically valid predictions
-
-## Technical Details
-
-### Graph Neural Network
-
-- **Message Passing**: Node features aggregated via attention mechanism
-- **Edge Type Embeddings**: Different relationship types have learned representations
-- **Multi-head Attention**: 4 attention heads for robust feature learning
-- **Residual Connections**: Skip connections for training stability
+## 🔧 Technical Details
 
 ### MLX Integration
+- **Apple Silicon optimized** tensor operations
+- **Automatic differentiation** for gradient computation
+- **Efficient batching** for large family trees
+- **Native GPU acceleration** on Mac
 
-- All tensor operations use MLX arrays for Apple Silicon optimization
-- Automatic differentiation for gradient computation
-- Efficient batching for large graph processing
-- Native support for Mac GPU acceleration
+### Graph Neural Network
+- **Multi-head attention** mechanism (4 heads)
+- **Message passing** with edge-type embeddings
+- **Residual connections** for training stability
+- **Contrastive learning** with balanced sampling
 
-## Troubleshooting
+## 🚨 Troubleshooting
 
 ### Common Issues
 
-1. **MLX Installation**: Ensure Apple Silicon Mac or compatible system
-2. **Memory Usage**: Reduce batch size for large genealogies
-3. **GEDCOM Parsing**: Check file encoding (UTF-8, Latin-1 supported)
-4. **Training Convergence**: Adjust learning rate or model capacity
+| Issue | Solution |
+|-------|----------|
+| MLX installation fails | Ensure Apple Silicon Mac |
+| Memory errors | Reduce batch size in config |
+| GEDCOM parsing errors | Check file encoding (UTF-8/Latin-1) |
+| Poor predictions | Increase training data or epochs |
 
 ### Performance Tips
+- Use MLX GPU acceleration on Apple Silicon
+- Batch small families together for efficiency
+- Filter individuals with missing data
+- Enable early stopping to prevent overfitting
 
-- Use GPU acceleration with MLX on Apple Silicon
-- Batch multiple small families for efficient processing
-- Filter individuals with insufficient data before training
-- Use early stopping to prevent overfitting
+## 🤝 Contributing
 
-## Contributing
+We welcome contributions! Please:
 
-Contributions welcome! Please submit issues and pull requests.
+1. Fork the repository
+2. Create a feature branch
+3. Submit a pull request
 
-## License
+## 📄 License
 
-[License information to be added]
+[License details to be added]
 
-## Citation
+## 📚 Citation
 
-If you use OhanaAI in your research, please cite:
+If you use OhanaAI in your research:
 
+```bibtex
+@software{ohanaai2024,
+  title={OhanaAI: Graph Neural Networks for Genealogical Parent Prediction},
+  author={Tyler Gee},
+  url={https://github.com/ikaikaalika/ohanaai},
+  year={2024}
+}
 ```
-OhanaAI: Graph Neural Networks for Genealogical Parent Prediction
-[Citation details to be added]
-```
+
+---
+
+**OhanaAI** - *Reconnecting families through AI* 🌺
+
+*"Ohana means family. Family means nobody gets left behind or forgotten."*
