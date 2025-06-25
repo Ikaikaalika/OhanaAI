@@ -122,8 +122,6 @@ def setup_routes(app: FastAPI, server: OhanaAPIServer) -> None:
     async def read_users_me(current_user: User = Depends(require_auth)):
         return current_user
 
-    from ..predictor import OhanaAIPredictor
-
     @app.post("/predict")
     async def predict(
         request: PredictionRequest,
@@ -200,7 +198,7 @@ def setup_routes(app: FastAPI, server: OhanaAPIServer) -> None:
             return PlainTextResponse(file_content.decode('utf-8'))
         except Exception as e:
             server.logger.error(f"Error fetching GEDCOM from blob: {e}")
-            raise HTTPException(status_code=500, detail="Failed to retrieve GEDCOM file content")
+            raise HTTPException(status_code=500, detail=str(e))
 
     @app.delete("/gedcom/delete_all")
     async def delete_all_gedcom_files(current_user: User = Depends(require_auth)):

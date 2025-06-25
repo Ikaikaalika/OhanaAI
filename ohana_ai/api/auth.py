@@ -1,7 +1,3 @@
-"""
-Authentication and authorization for the OhanaAI API.
-"""
-
 import logging
 import secrets
 from datetime import datetime, timedelta
