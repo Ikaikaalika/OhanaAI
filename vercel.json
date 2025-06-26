@@ -2,7 +2,10 @@
   "builds": [
     {
       "src": "ohana_ai/api/server.py",
-      "use": "@vercel/python"
+      "use": "@vercel/python",
+      "config": {
+        "pip": "install -r requirements-vercel.txt"
+      }
     }
   ],
   "routes": [
