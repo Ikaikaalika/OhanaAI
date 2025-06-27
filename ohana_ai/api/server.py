@@ -21,7 +21,7 @@ from vercel_blob import BlobClient
 
 from ..core.config import OhanaConfig, load_config
 from ..graph_builder import GraphBuilder
-from ..gedcom_parser import parse_gedcom_file
+from .gedcom_parser import parse_gedcom_file
 from .models import PredictionRequest, UserCreate, UserLogin, Token, UserResponse, GedcomUploadResponse, GedcomFile
 from .auth import APIAuth, require_auth
 from fastapi.security import OAuth2PasswordRequestForm

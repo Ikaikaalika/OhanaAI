@@ -11,7 +11,7 @@ from typing import Dict, List, Optional, Set, Tuple
 import numpy as np
 import yaml
 
-from .gedcom_parser import Family, Individual
+from ohana_ai.api.gedcom_parser import Family, Individual
 
 logger = logging.getLogger(__name__)
 
