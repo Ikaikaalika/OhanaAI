@@ -13,12 +13,12 @@ from .data_deduplication import (
     DuplicateMatch,
     deduplicate_gedcom_files,
 )
-from .gedcom_parser import Family, GEDCOMParser, Individual, parse_gedcom_file
-from .gnn_model import ContrastiveLoss, GraphAttentionLayer, OhanaAIModel, create_model
+from .api.gedcom_parser import Family, GEDCOMParser, Individual, parse_gedcom_file
+from .gnn_model_tf import OhanaAIModelTF as OhanaAIModel, GraphAttentionLayer
 from .graph_builder import GraphBuilder, GraphData, build_graph_from_gedcom
 from .gui import OhanaAIGUI
 from .predictor import OhanaAIPredictor, ParentPrediction, predict_parents
-from .trainer import OhanaAITrainer, TrainingMetrics, train_model
+from .trainer_tf import OhanaAITrainer as OhanaAITrainer, TrainingMetrics, train_model
 
 __all__ = [
     # Core data structures
@@ -36,8 +36,6 @@ __all__ = [
     # Models
     "OhanaAIModel",
     "GraphAttentionLayer",
-    "ContrastiveLoss",
-    "create_model",
     # Training and prediction
     "OhanaAITrainer",
     "train_model",

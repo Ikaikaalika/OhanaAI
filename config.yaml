@@ -2,7 +2,7 @@
 
 # Model Architecture
 model:
-  node_features: 128
+  input_features: 128
   hidden_dim: 256
   num_heads: 4
   num_layers: 3
@@ -31,7 +31,7 @@ paths:
   checkpoints: "checkpoints/"
   logs: "logs/"
   outputs: "outputs/"
-  models: "checkpoints/ohana_model.npz"
+  models: "checkpoints/ohana_model"
 
 # GUI
 gui:
