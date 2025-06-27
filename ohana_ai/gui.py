@@ -14,9 +14,9 @@ from typing import Dict, List, Optional
 import yaml
 
 from .data_deduplication import DeduplicationEngine, DuplicateMatch
-from .gedcom_parser import Family, Individual, parse_gedcom_file
+from .api.gedcom_parser import Family, Individual, parse_gedcom_file
 from .predictor import OhanaAIPredictor, ParentPrediction
-from .trainer import OhanaAITrainer
+from .trainer_tf import OhanaAITrainer
 
 logger = logging.getLogger(__name__)
 

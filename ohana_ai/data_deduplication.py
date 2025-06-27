@@ -10,7 +10,7 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 from typing import Dict, List, Optional, Set, Tuple
 
-from .gedcom_parser import Family, Individual
+from .api.gedcom_parser import Family, Individual
 
 logger = logging.getLogger(__name__)
 
