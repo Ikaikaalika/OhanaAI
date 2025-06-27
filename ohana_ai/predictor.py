@@ -9,14 +9,10 @@ import os
 from dataclasses import dataclass
 from typing import Dict, List, NamedTuple, Optional, Tuple
 
-import mlx.core as mx
-import numpy as np
-import yaml
-
-from .gedcom_parser import Family, Individual
-from .gnn_model import OhanaAIModel, create_model
+from .api.gedcom_parser import Family, Individual
+from .gnn_model_tf import OhanaAIModelTF as OhanaAIModel
 from .graph_builder import GraphBuilder, GraphData
-from .trainer import OhanaAITrainer
+import tensorflow as tf
 
 logger = logging.getLogger(__name__)
 
@@ -51,22 +47,13 @@ class OhanaAIPredictor:
         self.max_predictions = self.config["gui"]["max_predictions"]
 
     def load_model(self, model_path: Optional[str] = None):
-        """Load trained model."""
         if model_path is None:
             model_path = self.config["paths"]["models"]
 
         logger.info(f"Loading model from {model_path}")
 
-        # Initialize model
-        self.model = create_model(self.config)
-
-        # Load weights
-        if os.path.exists(model_path):
-            state_dict = mx.load(model_path)
-            self.model.load_weights(list(state_dict.items()))
-            logger.info("Model loaded successfully")
-        else:
-            logger.warning(f"Model file {model_path} not found. Using untrained model.")
+        self.model = tf.keras.models.load_model(model_path)
+        logger.info("Model loaded successfully")
 
     def prepare_data(
         self, individuals: Dict[str, Individual], families: Dict[str, Family]
@@ -86,7 +73,6 @@ class OhanaAIPredictor:
         )
 
     def predict_missing_parents(self) -> List[ParentPrediction]:
-        """Predict missing parents for individuals in the family tree."""
         if self.model is None:
             raise ValueError("Model not loaded. Call load_model() first.")
 
@@ -96,15 +82,10 @@ class OhanaAIPredictor:
         logger.info("Predicting missing parents...")
 
         # Get node embeddings
-        with mx.no_grad():
-            node_embeddings = self.model(
-                self.graph_data.node_features,
-                self.graph_data.edge_index,
-                self.graph_data.edge_types,
-            )
+        node_embeddings = self.model([self.graph_data.node_features, self.graph_data.edge_index, self.graph_data.edge_types, None])
 
         # Find individuals missing parents
-        missing_parent_indices = mx.where(self.graph_data.missing_parents_mask)[0]
+        missing_parent_indices = np.where(self.graph_data.missing_parents_mask)[0]
 
         if len(missing_parent_indices) == 0:
             logger.info("No individuals missing parents found.")
@@ -125,17 +106,12 @@ class OhanaAIPredictor:
                 continue
 
             # Predict scores for candidates
-            with mx.no_grad():
-                candidate_pairs_mx = mx.array(candidate_pairs)
-                scores = self.model.predict_parents(node_embeddings, candidate_pairs_mx)
-                confidence_scores = mx.sigmoid(scores)
-
-            # Convert to numpy for processing
-            confidence_scores_np = np.array(confidence_scores)
+            scores = self.model.predict_parents(node_embeddings, tf.constant(candidate_pairs, dtype=tf.int32))
+            confidence_scores = tf.sigmoid(scores).numpy()
 
             # Filter and rank candidates
             child_predictions = self._process_candidates(
-                child_id, child_individual, candidate_pairs, confidence_scores_np
+                child_id, child_individual, candidate_pairs, confidence_scores
             )
 
             predictions.extend(child_predictions)
@@ -400,31 +376,18 @@ class OhanaAIPredictor:
 
 
 def predict_parents(
-    gedcom_files: List[str],
+    gedcom_content: str,
     model_path: Optional[str] = None,
     config_path: str = "config.yaml",
 ) -> List[ParentPrediction]:
-    """Convenience function to predict parents from GEDCOM files."""
-    from .gedcom_parser import parse_gedcom_file
+    from .api.gedcom_parser import parse_gedcom_file
 
-    # Parse all GEDCOM files
-    all_individuals = {}
-    all_families = {}
+    individuals, families = parse_gedcom_file(gedcom_content)
 
-    for gedcom_file in gedcom_files:
-        individuals, families = parse_gedcom_file(gedcom_file)
-        all_individuals.update(individuals)
-        all_families.update(families)
-
-    # Predict parents
     predictor = OhanaAIPredictor(config_path)
     predictor.load_model(model_path)
-    predictor.prepare_data(all_individuals, all_families)
+    predictor.prepare_data(individuals, families)
 
     predictions = predictor.predict_missing_parents()
-
-    # Export results
-    predictor.export_predictions_csv(predictions)
-    predictor.export_predictions_gedcom(predictions)
 
     return predictions
