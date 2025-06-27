@@ -1,5 +1,6 @@
 import React, { useState } from 'react';
 import './App.css';
+import FanChart from './FanChart';
 
 function App() {
   const [isLoggedIn, setIsLoggedIn] = useState(false);
@@ -205,10 +206,8 @@ function App() {
               </div>
             )}
 
-            {/* Placeholder for Fan Chart Visualization */}
-            <div className="fan-chart-placeholder">
-              <h3>Fan Chart Visualization</h3>
-              <p>Select a GEDCOM file to view its fan chart.</p>
+            <div className="fan-chart-container">
+              <FanChart gedcomContent={selectedGedcomContent} />
             </div>
           </div>
         )}
