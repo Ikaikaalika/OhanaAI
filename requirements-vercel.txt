@@ -14,3 +14,5 @@ gedcompy>=0.2.1
 chardet>=5.2.0
 sqlalchemy>=2.0.0
 alembic>=1.12.0
+psycopg2-binary>=2.9.0
+sqlalchemy-neon>=0.1.0

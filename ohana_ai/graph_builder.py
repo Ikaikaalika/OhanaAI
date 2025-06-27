@@ -8,7 +8,6 @@ from collections import defaultdict
 from dataclasses import dataclass
 from typing import Dict, List, Optional, Set, Tuple
 
-import mlx.core as mx
 import numpy as np
 import yaml
 
@@ -19,13 +18,13 @@ logger = logging.getLogger(__name__)
 
 @dataclass
 class GraphData:
-    """Container for graph data in MLX format."""
+    """Container for graph data in Numpy format."""
 
-    node_features: mx.array  # Shape: (num_nodes, feature_dim)
-    edge_index: mx.array  # Shape: (2, num_edges)
-    edge_types: mx.array  # Shape: (num_edges,)
+    node_features: np.ndarray  # Shape: (num_nodes, feature_dim)
+    edge_index: np.ndarray  # Shape: (2, num_edges)
+    edge_types: np.ndarray  # Shape: (num_edges,)
     node_ids: List[str]  # Original node IDs
-    missing_parents_mask: mx.array  # Shape: (num_nodes,) - 1 if missing parents
+    missing_parents_mask: np.ndarray  # Shape: (num_nodes,) - 1 if missing parents
 
     # Metadata
     num_nodes: int
@@ -40,7 +39,7 @@ class GraphBuilder:
         with open(config_path, "r") as f:
             self.config = yaml.safe_load(f)
 
-        self.feature_dim = self.config["model"]["node_features"]
+        self.feature_dim = self.config["model"]["input_features"]
         self.edge_types = {
             "parent_to_child": 0,
             "child_to_parent": 1,
@@ -82,11 +81,11 @@ class GraphBuilder:
         )
 
         graph_data = GraphData(
-            node_features=mx.array(node_features),
-            edge_index=mx.array(edge_index),
-            edge_types=mx.array(edge_types),
+            node_features=node_features,
+            edge_index=edge_index,
+            edge_types=edge_types,
             node_ids=node_ids,
-            missing_parents_mask=mx.array(missing_parents_mask),
+            missing_parents_mask=missing_parents_mask,
             num_nodes=len(node_ids),
             num_edges=len(edge_types),
             feature_dim=self.feature_dim,

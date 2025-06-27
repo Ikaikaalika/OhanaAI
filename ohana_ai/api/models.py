@@ -172,34 +172,8 @@ class StatusResponse(BaseModel):
 class PredictionRequest(BaseModel):
     """Request for parent predictions."""
     
-    gedcom_id: int = Field(..., description="GEDCOM file ID to make predictions for")
-    model_version: Optional[str] = Field(None, description="Model version to use (default: production)")
-    confidence_threshold: Optional[float] = Field(0.5, description="Minimum confidence threshold")
-    max_predictions: Optional[int] = Field(10, description="Maximum number of predictions to return")
-
-
-class ParentPrediction(BaseModel):
-    """Parent prediction result."""
-    
-    child_id: str
-    child_name: str
-    candidate_parent_id: str
-    candidate_parent_name: str
-    confidence_score: float
-    relationship_type: str  # "father" or "mother"
-    constraints_satisfied: Dict[str, bool]
-    age_difference: Optional[float]
-
-
-class PredictionResponse(BaseModel):
-    """Response for prediction request."""
-    
-    gedcom_id: int
-    model_version: str
-    prediction_time: str
-    total_predictions: int
-    high_confidence_predictions: int
-    predictions: List[ParentPrediction]
+    gedcom_file: str = Field(..., description="GEDCOM file content as a string")
+    candidate_pairs: List[List[int]] = Field(..., description="List of candidate parent-child pairs")
 
 
 class ExperimentRequest(BaseModel):
