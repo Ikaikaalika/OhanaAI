@@ -248,3 +248,25 @@ class BatchUploadResponse(BaseModel):
     failed_files: List[Dict[str, Any]]
     total_files: int
     successful_uploads: int
+
+
+class UserCreate(BaseModel):
+    username: str
+    password: str
+
+
+class UserLogin(BaseModel):
+    username: str
+    password: str
+
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str
+
+
+class UserResponse(BaseModel):
+    id: int
+    username: str
+    roles: List[str]
+    is_active: bool

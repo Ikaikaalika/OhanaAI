@@ -20,9 +20,10 @@ import uvicorn
 from ..core.config import OhanaConfig, load_config
 from ..graph_builder import GraphBuilder
 from ..gedcom_parser import parse_gedcom_file
-from .models import *
+from .models import PredictionRequest, UserCreate, UserLogin, Token, UserResponse
 from .auth import APIAuth, require_auth
-from ..gedcom_parser import parse_gedcom_file
+from fastapi.security import OAuth2PasswordRequestForm
+from ..mlops.database import User
 
 
 class OhanaAPIServer:
@@ -93,10 +94,34 @@ def create_app(config_path: str = "config.yaml") -> FastAPI:
 
 
 def setup_routes(app: FastAPI, server: OhanaAPIServer) -> None:
+    @app.post("/register", response_model=UserResponse)
+    async def register_user(user_create: UserCreate):
+        existing_user = server.auth.db_manager.get_user(user_create.username)
+        if existing_user:
+            raise HTTPException(status_code=400, detail="Username already registered")
+        
+        hashed_password = server.auth.get_password_hash(user_create.password)
+        new_user = User(username=user_create.username, password_hash=hashed_password)
+        user_id = server.auth.db_manager.add_user(new_user)
+        new_user.id = user_id
+        return new_user
+
+    @app.post("/token", response_model=Token)
+    async def login_for_access_token(form_data: OAuth2PasswordRequestForm = Depends()):
+        user = server.auth.authenticate_user(form_data.username, form_data.password)
+        if not user:
+            raise HTTPException(status_code=400, detail="Incorrect username or password")
+        access_token = server.auth.create_access_token(data={"sub": user.username})
+        return {"access_token": access_token, "token_type": "bearer"}
+
+    @app.get("/users/me", response_model=UserResponse)
+    async def read_users_me(current_user: User = Depends(require_auth)):
+        return current_user
+
     @app.post("/predict")
     async def predict(
         request: PredictionRequest,
-        auth_user: dict = Depends(require_auth)
+        current_user: User = Depends(require_auth)
     ):
         try:
             individuals, families = parse_gedcom_file(request.gedcom_file)
