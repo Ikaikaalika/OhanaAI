@@ -5,9 +5,13 @@ Handles GEDCOM files, processed graphs, and training metadata.
 
 import json
 <<<<<<< HEAD
+<<<<<<< HEAD
 import os
 =======
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+import os
+>>>>>>> origin/feature/full-app
 import pickle
 from datetime import datetime
 from enum import Enum
@@ -15,11 +19,16 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple
 
 <<<<<<< HEAD
+<<<<<<< HEAD
 import psycopg2
 from sqlalchemy import create_engine, text
 =======
 import sqlite3
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+import psycopg2
+from sqlalchemy import create_engine, text
+>>>>>>> origin/feature/full-app
 from dataclasses import dataclass
 
 import numpy as np
@@ -116,6 +125,9 @@ class TrainingRun:
 
 
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feature/full-app
 @dataclass
 class User:
     """User record in the database."""
@@ -159,6 +171,7 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS gedcom_files (
                     id SERIAL PRIMARY KEY,
                     user_id INTEGER NOT NULL,
+<<<<<<< HEAD
 =======
 class DatabaseManager:
     """Manages SQLite database for MLOps pipeline."""
@@ -183,6 +196,8 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS gedcom_files (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+>>>>>>> origin/feature/full-app
                     filename TEXT NOT NULL,
                     original_filename TEXT NOT NULL,
                     file_hash TEXT UNIQUE NOT NULL,
@@ -196,6 +211,9 @@ class DatabaseManager:
                     processing_time REAL DEFAULT 0.0,
                     error_message TEXT DEFAULT '',
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feature/full-app
                     metadata JSONB DEFAULT '{}',
                     FOREIGN KEY (user_id) REFERENCES users (id) ON DELETE CASCADE
                 )
@@ -228,6 +246,7 @@ class DatabaseManager:
                     end_time TIMESTAMP NULL,
                     duration REAL DEFAULT 0.0,
                     final_metrics JSONB DEFAULT '{}',
+<<<<<<< HEAD
 =======
                     metadata TEXT DEFAULT '{}'
                 )
@@ -263,17 +282,23 @@ class DatabaseManager:
                     duration REAL DEFAULT 0.0,
                     final_metrics TEXT DEFAULT '{}',
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+>>>>>>> origin/feature/full-app
                     model_path TEXT DEFAULT '',
                     model_version TEXT DEFAULT '',
                     error_message TEXT DEFAULT '',
                     triggered_by TEXT DEFAULT 'manual'
                 )
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feature/full-app
             """))
 
             connection.execute(text("""
                 CREATE TABLE IF NOT EXISTS training_metrics (
                     id SERIAL PRIMARY KEY,
+<<<<<<< HEAD
 =======
             """)
 
@@ -282,6 +307,8 @@ class DatabaseManager:
                 CREATE TABLE IF NOT EXISTS training_metrics (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+>>>>>>> origin/feature/full-app
                     run_id INTEGER NOT NULL,
                     epoch INTEGER NOT NULL,
                     train_loss REAL NOT NULL,
@@ -293,6 +320,9 @@ class DatabaseManager:
                     FOREIGN KEY (run_id) REFERENCES training_runs (id)
                 )
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feature/full-app
             """))
 
             connection.execute(text("CREATE INDEX IF NOT EXISTS idx_gedcom_hash ON gedcom_files (file_hash)"))
@@ -401,6 +431,7 @@ class DatabaseManager:
                     processing_time=row.processing_time,
                     error_message=row.error_message,
                     metadata=json.loads(row.metadata)
+<<<<<<< HEAD
 =======
             """)
 
@@ -466,12 +497,17 @@ class DatabaseManager:
                     error_message=row["error_message"],
                     metadata=json.loads(row["metadata"])
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+>>>>>>> origin/feature/full-app
                 )
         return None
 
     def update_gedcom_status(self, file_id: int, status: ProcessingStatus, 
                            error_message: str = "") -> None:
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feature/full-app
         with self.engine.connect() as connection:
             connection.execute(text("""
                 UPDATE gedcom_files 
@@ -591,6 +627,7 @@ class DatabaseManager:
                     node_metadata=row.node_metadata,
                     created_time=row.created_time,
                     access_count=row.access_count + 1,
+<<<<<<< HEAD
 =======
         """Update GEDCOM file processing status.
         
@@ -697,11 +734,14 @@ class DatabaseManager:
                     created_time=datetime.fromisoformat(row["created_time"]),
                     access_count=row["access_count"] + 1,
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+>>>>>>> origin/feature/full-app
                     last_accessed=datetime.now()
                 )
         return None
 
     def add_training_run(self, run: TrainingRun) -> int:
+<<<<<<< HEAD
 <<<<<<< HEAD
         with self.engine.connect() as connection:
             result = connection.execute(text("""
@@ -717,11 +757,18 @@ class DatabaseManager:
         with sqlite3.connect(self.db_path) as conn:
             cursor = conn.execute("""
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+        with self.engine.connect() as connection:
+            result = connection.execute(text("""
+>>>>>>> origin/feature/full-app
                 INSERT INTO training_runs (
                     run_name, status, config, gedcom_ids, start_time, end_time,
                     duration, final_metrics, model_path, model_version,
                     error_message, triggered_by
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feature/full-app
                 ) VALUES (:run_name, :status, :config, :gedcom_ids, :start_time, :end_time,
                     :duration, :final_metrics, :model_path, :model_version,
                     :error_message, :triggered_by)
@@ -742,6 +789,7 @@ class DatabaseManager:
             })
             connection.commit()
             return result.scalar_one()
+<<<<<<< HEAD
 =======
                 ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
@@ -752,6 +800,8 @@ class DatabaseManager:
             ))
             return cursor.lastrowid
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+>>>>>>> origin/feature/full-app
 
     def update_training_run(self, run_id: int, status: TrainingStatus,
                            end_time: Optional[datetime] = None,
@@ -761,6 +811,9 @@ class DatabaseManager:
                            model_version: str = "",
                            error_message: str = "") -> None:
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feature/full-app
         if final_metrics is None:
             final_metrics = {}
             
@@ -781,6 +834,7 @@ class DatabaseManager:
                 "run_id": run_id
             })
             connection.commit()
+<<<<<<< HEAD
 =======
         """Update training run status and results.
         
@@ -809,11 +863,16 @@ class DatabaseManager:
             ))
             conn.commit()
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+>>>>>>> origin/feature/full-app
 
     def log_training_metrics(self, run_id: int, epoch: int, train_loss: float,
                            train_accuracy: float, val_loss: float, val_accuracy: float,
                            learning_rate: float) -> None:
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feature/full-app
         with self.engine.connect() as connection:
             connection.execute(text("""
                 INSERT INTO training_metrics (
@@ -864,6 +923,7 @@ class DatabaseManager:
                     model_version=row.model_version,
                     error_message=row.error_message,
                     triggered_by=row.triggered_by
+<<<<<<< HEAD
 =======
         """Log training metrics for an epoch.
         
@@ -930,11 +990,16 @@ class DatabaseManager:
                     error_message=row["error_message"],
                     triggered_by=row["triggered_by"]
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+>>>>>>> origin/feature/full-app
                 ))
         return runs
 
     def cleanup_old_cache(self, max_age_days: int = 30) -> int:
 <<<<<<< HEAD
+<<<<<<< HEAD
+=======
+>>>>>>> origin/feature/full-app
         with self.engine.connect() as connection:
             result = connection.execute(text("""
                 DELETE FROM graph_cache 
@@ -973,6 +1038,7 @@ class DatabaseManager:
             # Database size (approximation for PostgreSQL)
             result = connection.execute(text("SELECT pg_database_size(current_database())"))
             stats["database_size"] = result.scalar_one()
+<<<<<<< HEAD
 =======
         """Clean up old cached graphs.
         
@@ -1028,5 +1094,7 @@ class DatabaseManager:
             # Database size
             stats["database_size"] = self.db_path.stat().st_size
 >>>>>>> c6c7a59 (Add comprehensive MLOps infrastructure for continuous GEDCOM training)
+=======
+>>>>>>> origin/feature/full-app
             
         return stats
