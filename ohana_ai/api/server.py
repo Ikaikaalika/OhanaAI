@@ -14,7 +14,7 @@ import numpy as np
 import tensorflow as tf
 from fastapi import FastAPI, HTTPException, UploadFile, File, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import JSONResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
 from vercel_blob import BlobClient
@@ -26,6 +26,7 @@ from .models import PredictionRequest, UserCreate, UserLogin, Token, UserRespons
 from .auth import APIAuth, require_auth
 from fastapi.security import OAuth2PasswordRequestForm
 from ..mlops.database import User, GedcomRecord, ProcessingStatus
+from ..predictor import OhanaAIPredictor
 
 
 class OhanaAPIServer:
@@ -121,18 +122,23 @@ def setup_routes(app: FastAPI, server: OhanaAPIServer) -> None:
     async def read_users_me(current_user: User = Depends(require_auth)):
         return current_user
 
+    from ..predictor import OhanaAIPredictor
+
     @app.post("/predict")
     async def predict(
         request: PredictionRequest,
         current_user: User = Depends(require_auth)
     ):
         try:
+            predictor = OhanaAIPredictor(config_path=server.config.config_path)
+            predictor.load_model(server.config.paths.models)
+            
             individuals, families = parse_gedcom_file(request.gedcom_file)
-            graph_data = server.graph_builder.build_graph(individuals, families)
+            predictor.prepare_data(individuals, families)
             
-            predictions = server.model.predict([graph_data.node_features, graph_data.edge_index, graph_data.edge_types, np.array(request.candidate_pairs)])
+            predictions = predictor.predict_missing_parents()
             
-            return {"predictions": predictions.tolist()}
+            return {"predictions": predictions}
         except Exception as e:
             server.logger.error(f"Prediction error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
@@ -178,21 +184,23 @@ def setup_routes(app: FastAPI, server: OhanaAPIServer) -> None:
             ) for f in files
         ]
 
-    @app.get("/gedcom/{file_id}", response_model=GedcomFile)
+    @app.get("/gedcom/{file_id}")
     async def get_gedcom_file_content(file_id: int, current_user: User = Depends(require_auth)):
         gedcom_record = server.auth.db_manager.get_gedcom_file(file_id, current_user.id)
         if not gedcom_record:
             raise HTTPException(status_code=404, detail="GEDCOM file not found")
         
-        # In a real app, you'd fetch content from blob_url and return it
-        # For now, just return metadata
-        return GedcomFile(
-            id=gedcom_record.id,
-            filename=gedcom_record.filename,
-            upload_time=gedcom_record.upload_time.isoformat(),
-            status=gedcom_record.status.value,
-            blob_url=gedcom_record.metadata.get("blob_url")
-        )
+        blob_url = gedcom_record.metadata.get("blob_url")
+        if not blob_url:
+            raise HTTPException(status_code=404, detail="GEDCOM file content not found in blob storage")
+
+        try:
+            # Fetch content from Vercel Blob
+            file_content = await server.blob_client.download(blob_url)
+            return PlainTextResponse(file_content.decode('utf-8'))
+        except Exception as e:
+            server.logger.error(f"Error fetching GEDCOM from blob: {e}")
+            raise HTTPException(status_code=500, detail="Failed to retrieve GEDCOM file content")
 
 
 async def run_server(config_path: str = "config.yaml", host: str = "0.0.0.0", port: int = 8000):

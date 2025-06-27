@@ -31,7 +31,7 @@ paths:
   checkpoints: "checkpoints/"
   logs: "logs/"
   outputs: "outputs/"
-  models: "checkpoints/ohana_model.keras"
+  models: "checkpoints/ohana_model"
 
 # GUI
 gui:
