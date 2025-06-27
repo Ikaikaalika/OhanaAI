@@ -8,6 +8,7 @@ function App() {
   const [message, setMessage] = useState('');
   const [gedcomFile, setGedcomFile] = useState(null);
   const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [selectedGedcomContent, setSelectedGedcomContent] = useState('');
 
   const handleLogin = async (e) => {
     e.preventDefault();
@@ -111,6 +112,27 @@ function App() {
     }
   };
 
+  const handleViewGedcom = async (fileId) => {
+    setMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/gedcom/${fileId}`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const gedcomText = await response.text();
+        setSelectedGedcomContent(gedcomText);
+      } else {
+        setMessage(data.detail || 'Failed to fetch GEDCOM content.');
+      }
+    } catch (error) {
+      setMessage('Error fetching GEDCOM content.');
+      console.error('Fetch GEDCOM error:', error);
+    }
+  };
+
   const handleLogout = () => {
     localStorage.removeItem('token');
     setIsLoggedIn(false);
@@ -118,6 +140,7 @@ function App() {
     setPassword('');
     setMessage('Logged out.');
     setUploadedFiles([]);
+    setSelectedGedcomContent('');
   };
 
   return (
@@ -169,10 +192,17 @@ function App() {
                 {uploadedFiles.map((file) => (
                   <li key={file.id}>
                     {file.filename} (Status: {file.status})
-                    {/* Add fan chart visualization link/button here */}
+                    <button onClick={() => handleViewGedcom(file.id)}>View GEDCOM</button>
                   </li>
                 ))}
               </ul>
+            )}
+
+            {selectedGedcomContent && (
+              <div className="gedcom-viewer">
+                <h3>GEDCOM Content</h3>
+                <pre>{selectedGedcomContent}</pre>
+              </div>
             )}
 
             {/* Placeholder for Fan Chart Visualization */}
