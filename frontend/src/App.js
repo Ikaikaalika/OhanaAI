@@ -144,6 +144,89 @@ function App() {
     setSelectedGedcomContent('');
   };
 
+  const handleDeleteAllData = async () => {
+    if (!window.confirm('Are you sure you want to delete all your GEDCOM data? This action cannot be undone.')) {
+      return;
+    }
+    setMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/gedcom/delete_all', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setMessage(data.message);
+        setUploadedFiles([]);
+        setSelectedGedcomContent('');
+      } else {
+        setMessage(data.detail || 'Failed to delete data.');
+      }
+    } catch (error) {
+      setMessage('Error deleting data.');
+      console.error('Delete data error:', error);
+    }
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!window.confirm('Are you sure you want to delete your account? This action cannot be undone and will delete all your data.')) {
+      return;
+    }
+    setMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/users/delete_me', {
+        method: 'DELETE',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setMessage(data.message);
+        handleLogout(); // Log out after account deletion
+      } else {
+        setMessage(data.detail || 'Failed to delete account.');
+      }
+    } catch (error) {
+      setMessage('Error deleting account.');
+      console.error('Delete account error:', error);
+    }
+  };
+
+  const handleDownloadFilledGedcom = async (fileId, filename) => {
+    setMessage('');
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch(`/api/gedcom/${fileId}/filled`, {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      if (response.ok) {
+        const gedcomText = await response.text();
+        const blob = new Blob([gedcomText], { type: 'text/plain' });
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `filled_${filename}`;
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        setMessage('Filled GEDCOM file downloaded.');
+      } else {
+        setMessage(data.detail || 'Failed to download filled GEDCOM.');
+      }
+    } catch (error) {
+      setMessage('Error downloading filled GEDCOM.');
+      console.error('Download filled GEDCOM error:', error);
+    }
+  };
+
   return (
     <div className="App">
       <header className="App-header">
@@ -174,6 +257,8 @@ function App() {
           <div>
             <h2>Welcome, {username}!</h2>
             <button onClick={handleLogout}>Logout</button>
+            <button onClick={handleDeleteAllData}>Delete All My Data</button>
+            <button onClick={handleDeleteAccount}>Delete My Account</button>
 
             <h3>Upload GEDCOM File</h3>
             <form onSubmit={handleFileUpload}>
@@ -194,6 +279,7 @@ function App() {
                   <li key={file.id}>
                     {file.filename} (Status: {file.status})
                     <button onClick={() => handleViewGedcom(file.id)}>View GEDCOM</button>
+                    <button onClick={() => handleDownloadFilledGedcom(file.id, file.filename)}>Download Filled GEDCOM</button>
                   </li>
                 ))}
               </ul>
