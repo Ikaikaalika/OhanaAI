@@ -240,6 +240,22 @@ class BatchUploadRequest(BaseModel):
     auto_train: Optional[bool] = Field(True, description="Automatically trigger training")
 
 
+class GedcomUploadResponse(BaseModel):
+    message: str
+    file_id: int
+    filename: str
+    size: int
+    blob_url: str
+
+
+class GedcomFile(BaseModel):
+    id: int
+    filename: str
+    upload_time: str
+    status: str
+    blob_url: Optional[str]
+
+
 class BatchUploadResponse(BaseModel):
     """Response for batch upload."""
     

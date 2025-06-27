@@ -7,7 +7,8 @@ import logging
 import os
 from contextlib import asynccontextmanager
 from pathlib import Path
-from typing import Dict, Any
+import hashlib
+from typing import Dict, Any, List
 
 import numpy as np
 import tensorflow as tf
@@ -16,14 +17,15 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 import uvicorn
+from vercel_blob import BlobClient
 
 from ..core.config import OhanaConfig, load_config
 from ..graph_builder import GraphBuilder
 from ..gedcom_parser import parse_gedcom_file
-from .models import PredictionRequest, UserCreate, UserLogin, Token, UserResponse
+from .models import PredictionRequest, UserCreate, UserLogin, Token, UserResponse, GedcomUploadResponse, GedcomFile
 from .auth import APIAuth, require_auth
 from fastapi.security import OAuth2PasswordRequestForm
-from ..mlops.database import User
+from ..mlops.database import User, GedcomRecord, ProcessingStatus
 
 
 class OhanaAPIServer:
@@ -35,6 +37,7 @@ class OhanaAPIServer:
         self.graph_builder = GraphBuilder(config_path)
         self.auth = APIAuth()
         self.logger = logging.getLogger(__name__)
+        self.blob_client = BlobClient()
 
     async def startup(self) -> None:
         self.logger.info("Starting OhanaAI API server...")
@@ -133,6 +136,63 @@ def setup_routes(app: FastAPI, server: OhanaAPIServer) -> None:
         except Exception as e:
             server.logger.error(f"Prediction error: {e}")
             raise HTTPException(status_code=500, detail=str(e))
+
+    @app.post("/gedcom/upload", response_model=GedcomUploadResponse)
+    async def upload_gedcom(
+        file: UploadFile = File(...),
+        current_user: User = Depends(require_auth)
+    ):
+        if not file.filename.lower().endswith(('.ged', '.gedcom')):
+            raise HTTPException(status_code=400, detail="Only GEDCOM files (.ged, .gedcom) are allowed")
+        
+        file_content = await file.read()
+        file_hash = hashlib.sha256(file_content).hexdigest()
+        
+        # Upload to Vercel Blob
+        blob_url = await server.blob_client.upload(file.filename, file_content, {'access': 'public'})
+        
+        # Save metadata to DB
+        gedcom_record = GedcomRecord(
+            user_id=current_user.id,
+            filename=file.filename,
+            original_filename=file.filename,
+            file_hash=file_hash,
+            file_size=len(file_content),
+            status=ProcessingStatus.UPLOADED,
+            metadata={"blob_url": blob_url}
+        )
+        file_id = server.auth.db_manager.add_gedcom_file(gedcom_record)
+        
+        return {"message": "File uploaded successfully", "file_id": file_id, "filename": file.filename, "size": len(file_content), "blob_url": blob_url}
+
+    @app.get("/gedcom/list", response_model=List[GedcomFile])
+    async def list_gedcom_files(current_user: User = Depends(require_auth)):
+        files = server.auth.db_manager.get_all_gedcom_files(current_user.id)
+        return [
+            GedcomFile(
+                id=f.id,
+                filename=f.filename,
+                upload_time=f.upload_time.isoformat(),
+                status=f.status.value,
+                blob_url=f.metadata.get("blob_url")
+            ) for f in files
+        ]
+
+    @app.get("/gedcom/{file_id}", response_model=GedcomFile)
+    async def get_gedcom_file_content(file_id: int, current_user: User = Depends(require_auth)):
+        gedcom_record = server.auth.db_manager.get_gedcom_file(file_id, current_user.id)
+        if not gedcom_record:
+            raise HTTPException(status_code=404, detail="GEDCOM file not found")
+        
+        # In a real app, you'd fetch content from blob_url and return it
+        # For now, just return metadata
+        return GedcomFile(
+            id=gedcom_record.id,
+            filename=gedcom_record.filename,
+            upload_time=gedcom_record.upload_time.isoformat(),
+            status=gedcom_record.status.value,
+            blob_url=gedcom_record.metadata.get("blob_url")
+        )
 
 
 async def run_server(config_path: str = "config.yaml", host: str = "0.0.0.0", port: int = 8000):
