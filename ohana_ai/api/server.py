@@ -202,6 +202,60 @@ def setup_routes(app: FastAPI, server: OhanaAPIServer) -> None:
             server.logger.error(f"Error fetching GEDCOM from blob: {e}")
             raise HTTPException(status_code=500, detail="Failed to retrieve GEDCOM file content")
 
+    @app.delete("/gedcom/delete_all")
+    async def delete_all_gedcom_files(current_user: User = Depends(require_auth)):
+        try:
+            deleted_blob_urls = server.auth.db_manager.delete_gedcom_files_for_user(current_user.id)
+            for blob_url in deleted_blob_urls:
+                await server.blob_client.delete(blob_url)
+            return {"message": f"Successfully deleted {len(deleted_blob_urls)} GEDCOM files."}
+        except Exception as e:
+            server.logger.error(f"Error deleting GEDCOM files: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.delete("/users/delete_me")
+    async def delete_my_account(current_user: User = Depends(require_auth)):
+        try:
+            # Delete all GEDCOM files associated with the user
+            deleted_blob_urls = server.auth.db_manager.delete_gedcom_files_for_user(current_user.id)
+            for blob_url in deleted_blob_urls:
+                await server.blob_client.delete(blob_url)
+            
+            # Delete the user account from the database
+            server.auth.db_manager.delete_user(current_user.id)
+            
+            return {"message": "Account and all associated data deleted successfully."}
+        except Exception as e:
+            server.logger.error(f"Error deleting user account: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
+    @app.get("/gedcom/{file_id}/filled", response_class=PlainTextResponse)
+    async def get_filled_gedcom_file(file_id: int, current_user: User = Depends(require_auth)):
+        gedcom_record = server.auth.db_manager.get_gedcom_file(file_id, current_user.id)
+        if not gedcom_record:
+            raise HTTPException(status_code=404, detail="GEDCOM file not found")
+        
+        blob_url = gedcom_record.metadata.get("blob_url")
+        if not blob_url:
+            raise HTTPException(status_code=404, detail="GEDCOM file content not found in blob storage")
+
+        try:
+            original_gedcom_content = await server.blob_client.download(blob_url)
+            original_gedcom_content = original_gedcom_content.decode('utf-8')
+
+            # Predict missing parents
+            predictor = OhanaAIPredictor(config_path=server.config.config_file)
+            predictor.load_model(server.config.paths.models)
+            predictions = predictor.predict_parents(original_gedcom_content)
+
+            # Generate filled GEDCOM content
+            filled_gedcom_content = predictor.export_predictions_gedcom_string(predictions, original_gedcom_content)
+            
+            return PlainTextResponse(filled_gedcom_content, media_type="text/plain")
+        except Exception as e:
+            server.logger.error(f"Error generating filled GEDCOM: {e}")
+            raise HTTPException(status_code=500, detail=str(e))
+
 
 async def run_server(config_path: str = "config.yaml", host: str = "0.0.0.0", port: int = 8000):
     """Run the API server.

@@ -387,6 +387,19 @@ class DatabaseManager:
             connection.execute(text("DELETE FROM gedcom_files WHERE id = :file_id AND user_id = :user_id"), {"file_id": file_id, "user_id": user_id})
             connection.commit()
 
+    def delete_gedcom_files_for_user(self, user_id: int) -> List[str]:
+        deleted_blob_urls = []
+        with self.engine.connect() as connection:
+            # Get blob URLs before deleting records
+            result = connection.execute(text("SELECT metadata->>'blob_url' FROM gedcom_files WHERE user_id = :user_id"), {"user_id": user_id})
+            for row in result.fetchall():
+                if row[0]:
+                    deleted_blob_urls.append(row[0])
+
+            connection.execute(text("DELETE FROM gedcom_files WHERE user_id = :user_id"), {"user_id": user_id})
+            connection.commit()
+        return deleted_blob_urls
+
     def cache_graph(self, cache: GraphCache) -> int:
         with self.engine.connect() as connection:
             result = connection.execute(text("""
