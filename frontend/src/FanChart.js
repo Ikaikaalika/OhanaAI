@@ -1,12 +1,10 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { parseGedcom } from './gedcom-parser';
 import Tree from 'react-d3-tree';
-import * as tf from '@tensorflow/tfjs';
 
 const FanChart = ({ gedcomContent }) => {
   const treeContainerRef = useRef(null);
   const [translate, setTranslate] = React.useState({ x: 0, y: 0 });
-  const [model, setModel] = useState(null);
   const [predictionMessage, setPredictionMessage] = useState('');
 
   useEffect(() => {
@@ -14,21 +12,6 @@ const FanChart = ({ gedcomContent }) => {
       const dimensions = treeContainerRef.current.getBoundingClientRect();
       setTranslate({ x: dimensions.width / 2, y: dimensions.height / 2 });
     }
-  }, []);
-
-  useEffect(() => {
-    const loadModel = async () => {
-      try {
-        // Assuming the model is hosted at /model/model.json relative to the public directory
-        const loadedModel = await tf.loadGraphModel('/model/model.json');
-        setModel(loadedModel);
-        setPredictionMessage('TensorFlow.js model loaded successfully.');
-      } catch (error) {
-        setPredictionMessage('Failed to load TensorFlow.js model.');
-        console.error('Error loading TF.js model:', error);
-      }
-    };
-    loadModel();
   }, []);
 
   if (!gedcomContent) {
@@ -44,10 +27,6 @@ const FanChart = ({ gedcomContent }) => {
   }
 
   const handlePredictMissingParents = async () => {
-    if (!model) {
-      setPredictionMessage('Model not loaded yet.');
-      return;
-    }
     setPredictionMessage('Predicting missing parents...');
 
     try {
@@ -123,7 +102,7 @@ const FanChart = ({ gedcomContent }) => {
         />
       </div>
       <div style={{ marginTop: '20px', textAlign: 'center' }}>
-        <button onClick={handlePredictMissingParents} disabled={!model}>
+        <button onClick={handlePredictMissingParents}>
           Predict Missing Parents
         </button>
         <p>{predictionMessage}</p>
