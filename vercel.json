@@ -1,6 +1,11 @@
 {
   "builds": [
     {
+      "src": "frontend/package.json",
+      "use": "@vercel/static-build",
+      "config": { "distDir": "build" }
+    },
+    {
       "src": "ohana_ai/api/server.py",
       "use": "@vercel/python",
       "config": {
@@ -10,8 +15,12 @@
   ],
   "routes": [
     {
-      "src": "/(.*)",
+      "src": "/api/(.*)",
       "dest": "ohana_ai/api/server.py"
+    },
+    {
+      "src": "/(.*)",
+      "dest": "frontend/$1"
     }
   ]
 }
