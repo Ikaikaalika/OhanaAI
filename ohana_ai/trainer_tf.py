@@ -12,7 +12,7 @@ import numpy as np
 import tensorflow as tf
 import yaml
 
-from .gedcom_parser import Family, Individual
+from .api.gedcom_parser import Family, Individual
 from .gnn_model_tf import OhanaAIModelTF
 from .graph_builder import GraphBuilder, GraphData
 
