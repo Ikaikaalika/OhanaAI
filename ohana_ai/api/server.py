@@ -130,7 +130,7 @@ def setup_routes(app: FastAPI, server: OhanaAPIServer) -> None:
         current_user: User = Depends(require_auth)
     ):
         try:
-            predictor = OhanaAIPredictor(config_path=server.config.config_path)
+            predictor = OhanaAIPredictor(config_path=server.config.config_file)
             predictor.load_model(server.config.paths.models)
             
             individuals, families = parse_gedcom_file(request.gedcom_file)
