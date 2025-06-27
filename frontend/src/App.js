@@ -1,22 +1,187 @@
-import logo from './logo.svg';
+import React, { useState } from 'react';
 import './App.css';
 
 function App() {
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [username, setUsername] = useState('');
+  const [password, setPassword] = useState('');
+  const [message, setMessage] = useState('');
+  const [gedcomFile, setGedcomFile] = useState(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+
+  const handleLogin = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    try {
+      const response = await fetch('/api/token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: new URLSearchParams({
+          username: username,
+          password: password,
+        }).toString(),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        localStorage.setItem('token', data.access_token);
+        setIsLoggedIn(true);
+        setMessage('Login successful!');
+        fetchUploadedFiles();
+      } else {
+        setMessage(data.detail || 'Login failed.');
+      }
+    } catch (error) {
+      setMessage('Error during login.');
+      console.error('Login error:', error);
+    }
+  };
+
+  const handleRegister = async (e) => {
+    e.preventDefault();
+    setMessage('');
+    try {
+      const response = await fetch('/api/register', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username, password }),
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setMessage('Registration successful! Please log in.');
+      } else {
+        setMessage(data.detail || 'Registration failed.');
+      }
+    } catch (error) {
+      setMessage('Error during registration.');
+      console.error('Registration error:', error);
+    }
+  };
+
+  const handleFileUpload = async (e) => {
+    e.preventDefault();
+    if (!gedcomFile) {
+      setMessage('Please select a GEDCOM file.');
+      return;
+    }
+
+    setMessage('');
+    const formData = new FormData();
+    formData.append('file', gedcomFile);
+
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/gedcom/upload', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+        body: formData,
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setMessage('File uploaded successfully!');
+        setGedcomFile(null);
+        fetchUploadedFiles();
+      } else {
+        setMessage(data.detail || 'File upload failed.');
+      }
+    } catch (error) {
+      setMessage('Error during file upload.');
+      console.error('Upload error:', error);
+    }
+  };
+
+  const fetchUploadedFiles = async () => {
+    try {
+      const token = localStorage.getItem('token');
+      const response = await fetch('/api/gedcom/list', {
+        headers: {
+          'Authorization': `Bearer ${token}`,
+        },
+      });
+      const data = await response.json();
+      if (response.ok) {
+        setUploadedFiles(data);
+      } else {
+        setMessage(data.detail || 'Failed to fetch uploaded files.');
+      }
+    } catch (error) {
+      setMessage('Error fetching uploaded files.');
+      console.error('Fetch files error:', error);
+    }
+  };
+
+  const handleLogout = () => {
+    localStorage.removeItem('token');
+    setIsLoggedIn(false);
+    setUsername('');
+    setPassword('');
+    setMessage('Logged out.');
+    setUploadedFiles([]);
+  };
+
   return (
     <div className="App">
       <header className="App-header">
-        <img src={logo} className="App-logo" alt="logo" />
-        <p>
-          Edit <code>src/App.js</code> and save to reload.
-        </p>
-        <a
-          className="App-link"
-          href="https://reactjs.org"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          Learn React
-        </a>
+        <h1>OhanaAI</h1>
+        {message && <p>{message}</p>}
+
+        {!isLoggedIn ? (
+          <div>
+            <h2>Login / Register</h2>
+            <form onSubmit={handleLogin}>
+              <input
+                type="text"
+                placeholder="Username"
+                value={username}
+                onChange={(e) => setUsername(e.target.value)}
+              />
+              <input
+                type="password"
+                placeholder="Password"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+              />
+              <button type="submit">Login</button>
+              <button type="button" onClick={handleRegister}>Register</button>
+            </form>
+          </div>
+        ) : (
+          <div>
+            <h2>Welcome, {username}!</h2>
+            <button onClick={handleLogout}>Logout</button>
+
+            <h3>Upload GEDCOM File</h3>
+            <form onSubmit={handleFileUpload}>
+              <input
+                type="file"
+                accept=".ged,.gedcom"
+                onChange={(e) => setGedcomFile(e.target.files[0])}
+              />
+              <button type="submit">Upload</button>
+            </form>
+
+            <h3>Your GEDCOM Files</h3>
+            {uploadedFiles.length === 0 ? (
+              <p>No files uploaded yet.</p>
+            ) : (
+              <ul>
+                {uploadedFiles.map((file) => (
+                  <li key={file.id}>
+                    {file.filename} (Status: {file.status})
+                    {/* Add fan chart visualization link/button here */}
+                  </li>
+                ))}
+              </ul>
+            )}
+
+            {/* Placeholder for Fan Chart Visualization */}
+            <div className="fan-chart-placeholder">
+              <h3>Fan Chart Visualization</h3>
+              <p>Select a GEDCOM file to view its fan chart.</p>
+            </div>
+          </div>
+        )}
       </header>
     </div>
   );
