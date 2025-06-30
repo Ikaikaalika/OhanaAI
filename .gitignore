@@ -76,3 +76,7 @@ dmypy.json
 #Deprecated
 deprecated/
 
+# Next.js
+node_modules
+.next/
+.env*.local

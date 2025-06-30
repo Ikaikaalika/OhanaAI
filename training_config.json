@@ -1,0 +1,30 @@
+{
+  "web_app_url": "http://localhost:3000",
+  "api_key": "your-secret-key-here",
+  "min_new_examples": 25,
+  "backup_models": true,
+  "auto_deploy": false,
+  "notification_webhook": null,
+  "training_script": "train_model_m1.py",
+  "model_settings": {
+    "max_nodes": 200,
+    "feature_dim": 12,
+    "hidden_dim": 64,
+    "num_heads": 8,
+    "dropout_rate": 0.1,
+    "learning_rate": 0.001,
+    "batch_size": 8,
+    "max_epochs": 50,
+    "early_stopping_patience": 15
+  },
+  "data_processing": {
+    "max_components": 100,
+    "min_component_size": 5,
+    "max_sibling_edges": 50000
+  },
+  "deployment": {
+    "convert_to_tfjs": true,
+    "save_training_metadata": true,
+    "cleanup_old_exports": true
+  }
+}

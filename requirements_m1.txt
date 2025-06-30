@@ -1,0 +1,29 @@
+# Ohana AI - M1 Mac Requirements
+# Optimized for Apple Silicon with Metal GPU acceleration
+
+# Core ML and Scientific Computing
+tensorflow-macos>=2.13.0
+tensorflow-metal>=1.0.0
+numpy>=1.24.0
+pandas>=2.0.0
+scikit-learn>=1.3.0
+
+# Graph Processing
+networkx>=3.1
+
+# Visualization
+matplotlib>=3.7.0
+seaborn>=0.12.0
+
+# Web and API
+requests>=2.31.0
+
+# Utilities
+tqdm>=4.65.0
+
+# TensorFlow.js Conversion
+tensorflowjs>=4.0.0
+
+# Optional: Jupyter for experimentation
+# jupyter>=1.0.0
+# ipykernel>=6.0.0
