@@ -134,7 +134,7 @@ export async function POST(request: NextRequest) {
 async function getExportMetadata(trainingData: any[]) {
   try {
     // Get associated GEDCOM files info (anonymized)
-    const gedcomIds = [...new Set(trainingData.map(d => d.gedcomFileId))]
+    const gedcomIds = Array.from(new Set(trainingData.map(d => d.gedcomFileId)))
     
     const gedcomInfo = await db
       .select({
@@ -152,10 +152,10 @@ async function getExportMetadata(trainingData: any[]) {
       uniqueGedcomFiles: gedcomIds.length,
       totalFileSize: gedcomInfo.reduce((sum, file) => sum + file.fileSize, 0),
       dateRange: {
-        earliest: gedcomInfo.reduce((earliest, file) => 
-          !earliest || file.uploadedAt < earliest ? file.uploadedAt : earliest, null),
-        latest: gedcomInfo.reduce((latest, file) => 
-          !latest || file.uploadedAt > latest ? file.uploadedAt : latest, null)
+        earliest: gedcomInfo.reduce((earliest: Date | null, file) => 
+          !earliest || file.uploadedAt < earliest ? file.uploadedAt : earliest, null as Date | null),
+        latest: gedcomInfo.reduce((latest: Date | null, file) => 
+          !latest || file.uploadedAt > latest ? file.uploadedAt : latest, null as Date | null)
       },
       averageProcessingTime: 'anonymized' // Don't expose timing data
     }
