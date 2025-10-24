@@ -18,8 +18,10 @@ eggs/
 # Python virtual env artifacts (keep our TypeScript lib/)
 lib/
 lib64/
-!lib/
-!lib/**
+!lib/storage/
+!lib/storage/**
+!lib/jobs/
+!lib/jobs/**
 parts/
 sdist/
 var/

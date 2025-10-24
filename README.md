@@ -206,6 +206,11 @@ Run locally with all data, models, and emails hosted on this device:
 
    If you leave these blank the server stores files alongside the app directory (or `/tmp/ohana-ai` on Vercel). All paths are created automatically at runtime.
 
+5) GEDCOM processing queue
+
+   - Uploads are parsed and converted to ML-ready data by an in-process background queue.
+   - The API responds as soon as the file is stored; the queue continues building the family tree, so keep the Node.js server running until processing completes (`FileList` will show status).
+
 4) Notifications (optional)
 
    - On user signup, account deletion, and new parent predictions, an email is sent to `ADMIN_EMAIL` (and a welcome email to the user) if SMTP is configured.

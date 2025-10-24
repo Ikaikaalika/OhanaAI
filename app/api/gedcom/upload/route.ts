@@ -2,12 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { getServerSession } from 'next-auth'
 import { authOptions } from '@/lib/auth/config'
 import { db } from '@/lib/db'
-import { gedcomFiles, familyTrees, mlTrainingData } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { gedcomFiles } from '@/lib/db/schema'
 import { parseGedcom } from '@/lib/gedcom/parser'
-import { processGedcomForML } from '@/lib/ml/dataProcessor'
 import { v4 as uuidv4 } from 'uuid'
 import { saveUploadFile } from '@/lib/storage'
+import { enqueueGedcomProcessing } from '@/lib/jobs/gedcomProcessor'
 
 export const runtime = 'nodejs'
 
@@ -67,12 +66,15 @@ export async function POST(request: NextRequest) {
       isProcessed: false,
     }).returning()
 
-    // Process asynchronously
-    processFileAsync(newFile.id, parsedData)
+    // Process asynchronously via background queue
+    enqueueGedcomProcessing({
+      fileId: newFile.id,
+      parsedData,
+    })
 
     return NextResponse.json(
       { 
-        message: 'File uploaded successfully',
+        message: 'File uploaded successfully. Processing will continue in the background.',
         fileId: newFile.id 
       },
       { status: 201 }
@@ -84,42 +86,5 @@ export async function POST(request: NextRequest) {
       { error: 'Failed to upload file' },
       { status: 500 }
     )
-  }
-}
-
-async function processFileAsync(fileId: string, parsedData: any) {
-  try {
-    // Create family tree structure
-    const individuals = parsedData.individuals || []
-    const relationships = parsedData.relationships || []
-
-    // Create family tree record
-    await db.insert(familyTrees).values({
-      gedcomFileId: fileId,
-      individuals,
-      relationships,
-    })
-
-    // Process for ML training
-    const mlData = processGedcomForML(parsedData)
-    
-    if (mlData) {
-      await db.insert(mlTrainingData).values({
-        gedcomFileId: fileId,
-        graphData: mlData.graphData,
-        labels: mlData.labels,
-      })
-    }
-
-    // Mark as processed
-    await db.update(gedcomFiles)
-      .set({ 
-        isProcessed: true,
-        processedAt: new Date(),
-      })
-      .where(eq(gedcomFiles.id, fileId))
-
-  } catch (error) {
-    console.error('Processing error:', error)
   }
 }
