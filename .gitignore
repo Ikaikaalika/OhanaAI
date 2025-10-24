@@ -15,8 +15,11 @@ dist/
 downloads/
 eggs/
 .eggs/
+# Python virtual env artifacts (keep our TypeScript lib/)
 lib/
 lib64/
+!lib/
+!lib/**
 parts/
 sdist/
 var/

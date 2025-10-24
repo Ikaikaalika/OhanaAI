@@ -7,8 +7,9 @@ import { eq } from 'drizzle-orm'
 import { parseGedcom } from '@/lib/gedcom/parser'
 import { processGedcomForML } from '@/lib/ml/dataProcessor'
 import { v4 as uuidv4 } from 'uuid'
-import { writeFile, mkdir } from 'fs/promises'
-import { join } from 'path'
+import { saveUploadFile } from '@/lib/storage'
+
+export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   try {
@@ -47,21 +48,10 @@ export async function POST(request: NextRequest) {
 
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
-    
-    // Create uploads directory if it doesn't exist
-    const uploadsDir = join(process.cwd(), 'uploads')
-    try {
-      await mkdir(uploadsDir, { recursive: true })
-    } catch (error) {
-      // Directory might already exist
-    }
 
     // Generate unique filename
     const filename = `${uuidv4()}.ged`
-    const filepath = join(uploadsDir, filename)
-    
-    // Save file to disk
-    await writeFile(filepath, buffer)
+    await saveUploadFile(filename, buffer)
 
     // Parse GEDCOM file
     const gedcomText = buffer.toString('utf-8')

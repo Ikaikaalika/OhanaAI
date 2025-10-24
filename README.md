@@ -1,6 +1,6 @@
 # Ohana AI - Family Tree Intelligence
 
-A web application that uses AI to predict missing family relationships in GEDCOM files. Built with Next.js, TypeScript, and TensorFlow.js, featuring Graph Neural Networks (GNN) and Graph Attention Networks (GAT) for parent prediction.
+A web application that uses AI to predict missing family relationships in GEDCOM files. Built with Next.js, TypeScript, and TensorFlow.js (server-side via tfjs-node), featuring Graph Neural Networks (GNN) and Graph Attention Networks (GAT) for parent prediction.
 
 ## Features
 
@@ -17,7 +17,7 @@ A web application that uses AI to predict missing family relationships in GEDCOM
 - **Frontend**: Next.js 14, TypeScript, Tailwind CSS
 - **Backend**: Next.js API Routes, NextAuth.js
 - **Database**: PostgreSQL with Drizzle ORM
-- **ML**: TensorFlow.js, Python training pipeline
+- **ML**: TensorFlow.js (tfjs-node on the server), Python training pipeline
 - **Visualization**: vis-network for family trees
 - **Deployment**: Vercel
 
@@ -47,7 +47,12 @@ A web application that uses AI to predict missing family relationships in GEDCOM
    cp .env.example .env.local
    \`\`\`
    
-   Edit \`.env.local\` with your database URL and other configuration.
+   Edit \`.env.local\` with at least:
+   - `DATABASE_URL`
+   - `NEXTAUTH_SECRET`
+   - `NEXTAUTH_URL` (e.g., http://localhost:3000)
+   - `EXPORT_SECRET` (used by ML export endpoint)
+   - `ML_EXPORT_API_KEY` (for training scripts that reference it)
 
 4. **Set up the database**
    \`\`\`bash
@@ -74,20 +79,52 @@ When first deployed, the application will show "No trained model available" for 
 
 2. **Export Training Data**
    \`\`\`bash
+   # Ensure EXPORT_SECRET is set in .env.local and server is running
    curl -X POST http://localhost:3000/api/ml/export-training-data \\
      -H "Content-Type: application/json" \\
-     -d '{"authorization": "your-export-secret"}'
+     -d "{\"authorization\": \"$EXPORT_SECRET\"}"
+   \`\`\`
+
+   Validate export (example response):
+   \`\`\`json
+   {
+     "message": "Training data exported successfully",
+     "count": 123,
+     "batches": 2,
+     "directory": "/abs/path/to/training_data"
+   }
    \`\`\`
 
 3. **Train the Model**
    \`\`\`bash
    cd training_data
    pip install -r requirements.txt
-   python run_training.py
+   python3 run_training.py
    \`\`\`
 
 4. **Deploy the Model**
-   The trained model is automatically saved to \`models/parent_predictor/\` and will be loaded by the web application.
+   The trained model is saved to \`models/parent_predictor/\`. These artifacts are bundled for the serverless/API runtime and loaded by `/api/ml/predict` (see `next.config.js` `outputFileTracingIncludes`).
+
+#### Alternative: Local Training Scripts
+
+For local iterative training (especially on Apple Silicon):
+
+\`\`\`bash
+bash setup_ml_environment.sh   # sets up Python venv with TensorFlow
+python3 train_model_m1.py      # Apple Silicon optimized
+# or
+python3 train_model.py
+\`\`\`
+
+### Model Files Checklist
+
+Place the following under \`models/parent_predictor/\`:
+
+- Keras model: \`model.h5\` or \`ohana_model.h5\` (or Apple Silicon: \`ohana_model_m1.h5\`).
+- Optional TFJS artifacts (if converted): \`model.json\` and \`group1-shard1.bin\` (and additional shards if split).
+- Optional metadata: \`training_metadata.json\`, \`training_history.png\`.
+
+After placing files, restart the server. The predict API will load artifacts from this directory.
 
 ### Continuous Training
 
@@ -118,7 +155,7 @@ Set up a cron job or GitHub Action to periodically:
 - **Graph Construction**: Convert family trees to graph structures
 - **Feature Engineering**: Extract person and relationship features
 - **Model Training**: GNN/GAT models for link prediction
-- **Inference**: Real-time parent prediction via TensorFlow.js
+- **Inference**: Server-side parent prediction via TensorFlow.js (tfjs-node) in `/api/ml/predict`
 
 ## API Endpoints
 
@@ -135,9 +172,49 @@ Set up a cron job or GitHub Action to periodically:
 - \`POST /api/ml/predict\` - Generate parent predictions
 - \`POST /api/ml/export-training-data\` - Export training data
 
+## Local Hosting
+
+Run locally with all data, models, and emails hosted on this device:
+
+1) Environment
+
+   - Copy env: `cp .env.example .env.local`
+   - Set `DATABASE_URL` to your local Postgres
+   - Set `NEXTAUTH_SECRET` and `NEXTAUTH_URL` (e.g., http://ohana.local or http://localhost:3000)
+   - Optionally set email SMTP: `EMAIL_HOST`, `EMAIL_PORT`, `EMAIL_USER`, `EMAIL_PASS`, `EMAIL_FROM`, `ADMIN_EMAIL`
+   - Optional auto-train: `AUTO_TRAIN=true`, `TRAINING_SCRIPT=train_model_m1.py`
+
+2) Start app
+
+   - `npm run dev` (or `npm run build && npm start`)
+   - Optional: add `ohana.local` to `/etc/hosts` and front with a local proxy (Caddy/Nginx) for a custom URL.
+
+3) Data storage
+
+   - Uploaded GEDCOM files are saved under `uploads/` (configurable via `STORAGE_ROOT`/`UPLOADS_DIR`)
+   - Models are loaded from `models/parent_predictor/`
+   - Training exports written to `training_data/` (configurable via `TRAINING_DATA_DIR`)
+
+   Override the defaults in `.env.local`:
+
+   ```
+   STORAGE_ROOT=/Volumes/OhanaData     # optional absolute path (e.g., external drive)
+   UPLOADS_DIR=uploads                 # relative to STORAGE_ROOT if not absolute
+   TRAINING_DATA_DIR=training_data     # relative to STORAGE_ROOT if not absolute
+   ML_EXPORTS_DIR=exports/ml_training  # where export-user-data writes files
+   ```
+
+   If you leave these blank the server stores files alongside the app directory (or `/tmp/ohana-ai` on Vercel). All paths are created automatically at runtime.
+
+4) Notifications (optional)
+
+   - On user signup, account deletion, and new parent predictions, an email is sent to `ADMIN_EMAIL` (and a welcome email to the user) if SMTP is configured.
+
 ## Deployment
 
 ### Vercel Deployment
+
+For custom domains via Cloudflare, see DOMAIN_SETUP.md.
 
 1. **Connect to Vercel**
    \`\`\`bash

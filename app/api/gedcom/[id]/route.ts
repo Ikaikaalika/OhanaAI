@@ -4,8 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { db } from '@/lib/db'
 import { gedcomFiles, familyTrees, mlTrainingData } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { unlink } from 'fs/promises'
-import { join } from 'path'
+import { deleteUploadFile } from '@/lib/storage'
 
 export async function DELETE(
   request: NextRequest,
@@ -51,8 +50,7 @@ export async function DELETE(
 
     // Delete the physical file
     try {
-      const filepath = join(process.cwd(), 'uploads', file[0].filename)
-      await unlink(filepath)
+      await deleteUploadFile(file[0].filename)
     } catch (error) {
       console.error('Error deleting physical file:', error)
       // Continue even if file deletion fails

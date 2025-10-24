@@ -1,35 +1,37 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
-import { mlTrainingData, gedcomFiles, users } from '@/lib/db/schema'
+import { mlTrainingData, gedcomFiles } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { writeFile, mkdir } from 'fs/promises'
+import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { createHash } from 'crypto'
+import { ensureMlExportsDir } from '@/lib/storage'
+
+export const runtime = 'nodejs'
 
 // Secure API endpoint for exporting user data to your local machine
 export async function POST(request: NextRequest) {
   try {
-    // Security check - only allow from your domain or localhost
-    const origin = request.headers.get('origin')
-    const allowedOrigins = [
-      'http://localhost:3000',
-      'https://your-app.vercel.app', // Replace with your actual Vercel URL
-      process.env.NEXTAUTH_URL
-    ]
-    
-    if (!origin || !allowedOrigins.includes(origin)) {
-      return NextResponse.json(
-        { error: 'Unauthorized origin' },
-        { status: 403 }
-      )
+    // Verify API key/secret (primary check)
+    const { apiKey, includeMetadata = true } = await request.json()
+    const originHeader = request.headers.get('origin') || ''
+    if (apiKey !== process.env.ML_EXPORT_API_KEY) {
+      const allowedOrigins = [
+        'http://localhost:3000',
+        'https://your-app.vercel.app', // Replace with your actual Vercel URL
+        process.env.NEXTAUTH_URL || ''
+      ].filter(Boolean)
+      if (!originHeader || !allowedOrigins.includes(originHeader)) {
+        return NextResponse.json(
+          { error: 'Unauthorized' },
+          { status: 401 }
+        )
+      }
     }
 
-    // Verify API key/secret
-    const { apiKey, includeMetadata = true } = await request.json()
-    
-    if (apiKey !== process.env.ML_EXPORT_API_KEY) {
+    if (!apiKey || apiKey !== process.env.ML_EXPORT_API_KEY) {
       return NextResponse.json(
-        { error: 'Invalid API key' },
+        { error: 'Invalid API key or origin' },
         { status: 401 }
       )
     }
@@ -58,13 +60,7 @@ export async function POST(request: NextRequest) {
 
     // Create secure export directory
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const exportDir = join(process.cwd(), 'exports', 'ml_training')
-    
-    try {
-      await mkdir(exportDir, { recursive: true })
-    } catch (error) {
-      // Directory might already exist
-    }
+    const exportDir = await ensureMlExportsDir()
 
     // Generate secure filename
     const dataHash = createHash('sha256')
@@ -98,7 +94,10 @@ export async function POST(request: NextRequest) {
     await writeFile(filepath, JSON.stringify(exportData, null, 2))
 
     // Generate webhook URL for your local machine to fetch the data
-    const webhookUrl = `${origin}/api/ml/download-export/${filename}?key=${apiKey}`
+    const webhookBase = originHeader || process.env.NEXTAUTH_URL || ''
+    const webhookUrl = webhookBase
+      ? `${webhookBase.replace(/\/$/, '')}/api/ml/download-export/${filename}?key=${apiKey}`
+      : null
 
     // Mark data as exported (but not yet included in training)
     for (const item of newTrainingData) {
@@ -228,7 +227,8 @@ export async function GET(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
-    const filepath = join(process.cwd(), 'exports', 'ml_training', filename)
+    const baseDir = process.env.VERCEL ? '/tmp' : process.cwd()
+    const filepath = join(baseDir, 'exports', 'ml_training', filename)
     
     try {
       const fileContent = await import('fs').then(fs => 

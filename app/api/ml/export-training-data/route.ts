@@ -2,8 +2,11 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { mlTrainingData, gedcomFiles } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
-import { writeFile, mkdir } from 'fs/promises'
+import { writeFile } from 'fs/promises'
 import { join } from 'path'
+import { ensureTrainingDataDir } from '@/lib/storage'
+
+export const runtime = 'nodejs'
 
 // This endpoint should be secured or called via a cron job
 export async function POST(request: NextRequest) {
@@ -38,13 +41,9 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Create training data directory
-    const trainingDir = join(process.cwd(), 'training_data')
-    try {
-      await mkdir(trainingDir, { recursive: true })
-    } catch (error) {
-      // Directory might already exist
-    }
+    // Create training data directory in project dir (local hosting)
+    const baseDir = process.cwd()
+    const trainingDir = await ensureTrainingDataDir()
 
     // Export data in batches
     const batchSize = 100
@@ -93,11 +92,24 @@ export async function POST(request: NextRequest) {
     const requirements = generateRequirements()
     await writeFile(join(trainingDir, 'requirements.txt'), requirements)
 
+    // Optional: trigger local training automatically
+    if (process.env.AUTO_TRAIN === 'true') {
+      try {
+        const { spawn } = await import('child_process')
+        const script = process.env.TRAINING_SCRIPT || 'train_model_m1.py'
+        const py = spawn('python3', [script], { cwd: baseDir, stdio: 'ignore', detached: true })
+        py.unref()
+      } catch (err) {
+        console.error('Auto-train spawn error:', err)
+      }
+    }
+
     return NextResponse.json({
       message: 'Training data exported successfully',
       count: trainingData.length,
       batches: Math.ceil(trainingData.length / batchSize),
-      directory: trainingDir
+      directory: trainingDir,
+      autoTrain: process.env.AUTO_TRAIN === 'true'
     })
 
   } catch (error) {
