@@ -4,6 +4,7 @@ import { db } from '@/lib/db'
 import { users } from '@/lib/db/schema'
 import { eq } from 'drizzle-orm'
 import { z } from 'zod'
+import { sendEmail, formatAdminEmail } from '@/lib/email/mailer'
 
 const registerSchema = z.object({
   name: z.string().min(1, 'Name is required'),
@@ -32,6 +33,25 @@ export async function POST(request: NextRequest) {
       email,
       password: hashedPassword,
     }).returning({ id: users.id, name: users.name, email: users.email })
+
+    // Fire-and-forget notifications
+    const admin = process.env.ADMIN_EMAIL
+    if (admin) {
+      const payload = formatAdminEmail('New user joined', [
+        `Name: ${name}`,
+        `Email: ${email}`,
+        `Time: ${new Date().toISOString()}`,
+      ])
+      sendEmail({ to: admin, ...payload }).catch(() => {})
+    }
+    // Welcome email
+    try {
+      await sendEmail({
+        to: email,
+        subject: 'Welcome to Ohana AI',
+        text: `Hi ${name}, your account has been created.`,
+      })
+    } catch {}
 
     return NextResponse.json(
       { user: newUser[0] },

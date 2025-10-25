@@ -47,6 +47,18 @@ export function Navbar() {
                 >
                   Dashboard
                 </Link>
+                <Link
+                  href="/admin"
+                  className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  Admin
+                </Link>
+                <Link
+                  href="/account"
+                  className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium transition-colors"
+                >
+                  Account
+                </Link>
                 <div className="flex items-center space-x-3">
                   <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center">
                     <span className="text-white text-sm font-medium">
@@ -126,6 +138,20 @@ export function Navbar() {
                     onClick={() => setIsMenuOpen(false)}
                   >
                     Dashboard
+                  </Link>
+                  <Link
+                    href="/admin"
+                    className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Admin
+                  </Link>
+                  <Link
+                    href="/account"
+                    className="text-gray-700 hover:text-indigo-600 px-3 py-2 rounded-md text-sm font-medium"
+                    onClick={() => setIsMenuOpen(false)}
+                  >
+                    Account
                   </Link>
                   <div className="flex items-center space-x-3 px-3 py-2">
                     <div className="w-8 h-8 bg-gradient-to-r from-indigo-500 to-purple-500 rounded-full flex items-center justify-center">
