@@ -7,3 +7,10 @@
    - Environments: .env.local
 
  ✓ Ready in 1301ms
+ ○ Compiling / ...
+ ✓ Compiled / in 2.5s (564 modules)
+ ✓ Compiled in 315ms (284 modules)
+ ✓ Compiled /auth/signin in 222ms (549 modules)
+ ○ Compiling /api/auth/[...nextauth] ...
+ ✓ Compiled /api/auth/[...nextauth] in 1050ms (706 modules)
+ ✓ Compiled /auth/signup in 160ms (985 modules)
