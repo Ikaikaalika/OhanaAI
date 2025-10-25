@@ -1,8 +1,7 @@
 'use client'
 
-import { useEffect, useRef, useState } from 'react'
-import { Network } from 'vis-network'
-import { DataSet } from 'vis-data'
+import { useEffect, useMemo, useRef, useState } from 'react'
+import * as d3 from 'd3'
 import { FamilyTree, GedcomFile } from '@/lib/db/schema'
 
 interface FamilyTreeViewerProps {
@@ -10,260 +9,316 @@ interface FamilyTreeViewerProps {
   gedcomFile: GedcomFile
 }
 
+type Person = Record<string, any>
+
+type AncestorNode = {
+  id: string
+  name: string
+  person: Person
+  relationLabel: string
+  children: AncestorNode[]
+}
+
+type Prediction = {
+  personId?: string
+  relationship: string
+  name: string
+  confidence?: number
+}
+
+type PredictionGroup = {
+  personId: string
+  predictions: Prediction[]
+}
+
 export function FamilyTreeViewer({ familyTree, gedcomFile }: FamilyTreeViewerProps) {
-  const networkRef = useRef<HTMLDivElement>(null)
-  const [network, setNetwork] = useState<Network | null>(null)
-  const [selectedPerson, setSelectedPerson] = useState<any>(null)
-  const [predictions, setPredictions] = useState<any>(null)
-  const [loading, setLoading] = useState(false)
+  const svgRef = useRef<SVGSVGElement>(null)
+  const [selectedPerson, setSelectedPerson] = useState<Person | null>(null)
+  const [rootPersonId, setRootPersonId] = useState<string | null>(null)
+
+  const individuals = useMemo(() => {
+    return (familyTree.individuals as Person[]) || []
+  }, [familyTree.individuals])
+  const personMap = useMemo(() => {
+    const map = new Map<string, Person>()
+    individuals.forEach(person => {
+      if (person?.id) map.set(person.id, person)
+    })
+    return map
+  }, [individuals])
 
   useEffect(() => {
-    if (!networkRef.current || !familyTree.individuals) return
-
-    const individuals = familyTree.individuals as any[]
-    const relationships = familyTree.relationships as any
-
-    // Create nodes for visualization
-    const nodes = new DataSet(
-      individuals.map(person => ({
-        id: person.id,
-        label: person.name || 'Unknown',
-        title: createPersonTooltip(person),
-        color: {
-          background: getPersonColor(person),
-          border: '#2B5CE6',
-          highlight: {
-            background: '#FFE4B5',
-            border: '#FF8C00'
-          }
-        },
-        shape: 'box',
-        font: { size: 12, face: 'Arial' },
-        widthConstraint: { minimum: 80, maximum: 150 }
-      }))
-    )
-
-    // Create edges for relationships
-    const edges = new DataSet([
-      ...relationships.parentChild?.map((rel: any) => ({
-        from: rel.parent,
-        to: rel.child,
-        arrows: 'to',
-        color: { color: '#848484' },
-        width: 2,
-        label: 'parent'
-      })) || [],
-      ...relationships.spousal?.map((rel: any) => ({
-        from: rel.spouse1,
-        to: rel.spouse2,
-        color: { color: '#FF6B6B' },
-        width: 3,
-        label: 'spouse',
-        dashes: false
-      })) || []
-    ])
-
-    const options = {
-      layout: {
-        hierarchical: {
-          enabled: true,
-          direction: 'UD',
-          sortMethod: 'directed',
-          levelSeparation: 150,
-          nodeSpacing: 200,
-          treeSpacing: 200
-        }
-      },
-      physics: {
-        enabled: false
-      },
-      nodes: {
-        borderWidth: 2,
-        shadow: true
-      },
-      edges: {
-        smooth: {
-          enabled: true,
-          type: 'dynamic',
-          roundness: 0.5
-        }
-      },
-      interaction: {
-        dragNodes: true,
-        dragView: true,
-        zoomView: true
-      }
+    if (!rootPersonId && individuals.length > 0) {
+      setRootPersonId(individuals[0].id)
+      setSelectedPerson(individuals[0])
     }
+  }, [rootPersonId, individuals])
 
-    const net = new Network(networkRef.current, { nodes, edges }, options)
-    
-    net.on('click', (params) => {
-      if (params.nodes.length > 0) {
-        const personId = params.nodes[0]
-        const person = individuals.find(p => p.id === personId)
-        setSelectedPerson(person)
-      }
-    })
-
-    setNetwork(net)
-
-    return () => {
-      net.destroy()
+  const predictionsMap = useMemo(() => {
+    const entries = Array.isArray(gedcomFile.predictions) ? (gedcomFile.predictions as PredictionGroup[]) : []
+    const map = new Map<string, Prediction[]>()
+    for (const group of entries) {
+      if (!group?.personId || !Array.isArray(group.predictions)) continue
+      map.set(group.personId, group.predictions)
     }
-  }, [familyTree])
+    return map
+  }, [gedcomFile.predictions])
 
-  const createPersonTooltip = (person: any) => {
-    let tooltip = `<b>${person.name || 'Unknown'}</b><br/>`
-    if (person.birthDate) tooltip += `Born: ${person.birthDate}<br/>`
-    if (person.deathDate) tooltip += `Died: ${person.deathDate}<br/>`
-    if (person.gender) tooltip += `Gender: ${person.gender === 'M' ? 'Male' : 'Female'}<br/>`
-    return tooltip
-  }
+  const ancestorTree = useMemo(() => {
+    if (!rootPersonId) return null
+    const root = personMap.get(rootPersonId)
+    if (!root) return null
+    return buildAncestorTree(root, personMap, predictionsMap)
+  }, [rootPersonId, personMap, predictionsMap])
 
-  const getPersonColor = (person: any) => {
-    if (!person.father && !person.mother) return '#FFE4E1' // Missing both parents
-    if (!person.father || !person.mother) return '#FFF8DC' // Missing one parent
-    return '#E6F3FF' // Has both parents
-  }
+  useEffect(() => {
+    if (!ancestorTree || !svgRef.current) return
 
-  const runPredictions = async () => {
-    if (!selectedPerson) return
-    
-    setLoading(true)
-    try {
-      const response = await fetch('/api/ml/predict', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          gedcomFileId: gedcomFile.id,
-          personId: selectedPerson.id
-        })
+    const width = 840
+    const height = 840
+    const radius = (Math.min(width, height) / 2) - 40
+
+    const root = d3.hierarchy(ancestorTree)
+    const tree = d3.tree<AncestorNode>().size([2 * Math.PI, radius])
+    tree(root)
+
+    const svg = d3.select(svgRef.current)
+    svg.selectAll('*').remove()
+    svg.attr('viewBox', `${-width / 2} ${-height / 2} ${width} ${height}`)
+
+    const linkGenerator = d3.linkRadial()
+      .angle((d: any) => d.x)
+      .radius((d: any) => d.y)
+
+    svg.append('g')
+      .selectAll('path')
+      .data(root.links())
+      .join('path')
+      .attr('d', linkGenerator as any)
+      .attr('stroke', '#CBD5F5')
+      .attr('fill', 'none')
+      .attr('stroke-width', 1.5)
+
+    const nodeGroup = svg.append('g')
+      .selectAll('g')
+      .data(root.descendants())
+      .join('g')
+      .attr('transform', (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`)
+
+    nodeGroup.append('circle')
+      .attr('r', (d) => d.depth === 0 ? 9 : 5)
+      .attr('fill', (d) => getNodeColor(d.data))
+      .attr('stroke', '#1D4ED8')
+      .attr('stroke-width', 1.5)
+      .style('cursor', 'pointer')
+      .on('click', (_, d) => {
+        setSelectedPerson(d.data.person)
+        if (d.depth === 0) return
+        setRootPersonId(d.data.id.startsWith('virtual-') ? rootPersonId : d.data.id)
       })
 
-      if (response.ok) {
-        const data = await response.json()
-        setPredictions(data.predictions)
-      } else {
-        console.error('Prediction failed')
-      }
-    } catch (error) {
-      console.error('Error running predictions:', error)
-    } finally {
-      setLoading(false)
-    }
-  }
+    nodeGroup.append('text')
+      .attr('dy', '0.31em')
+      .attr('x', (d) => d.x < Math.PI ? 10 : -10)
+      .attr('text-anchor', (d) => d.x < Math.PI ? 'start' : 'end')
+      .attr('transform', (d) => d.x >= Math.PI ? 'rotate(180)' : '')
+      .text((d) => formatLabel(d.data))
+      .style('font-size', '12px')
+      .style('fill', '#1F2937')
+      .style('cursor', 'pointer')
+      .on('click', (_, d) => {
+        setSelectedPerson(d.data.person)
+        if (d.depth === 0) return
+        setRootPersonId(d.data.id.startsWith('virtual-') ? rootPersonId : d.data.id)
+      })
+
+  }, [ancestorTree, rootPersonId])
 
   return (
     <div className="bg-white rounded-lg shadow-lg overflow-hidden">
-      <div className="flex h-[600px]">
-        {/* Main tree visualization */}
-        <div className="flex-1 relative">
-          <div ref={networkRef} className="w-full h-full" />
-          
-          {/* Legend */}
-          <div className="absolute top-4 left-4 bg-white p-4 rounded-lg shadow-md">
-            <h4 className="font-semibold mb-2">Legend</h4>
-            <div className="space-y-2 text-sm">
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-red-100 border border-red-300 rounded mr-2"></div>
-                <span>Missing both parents</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-yellow-100 border border-yellow-300 rounded mr-2"></div>
-                <span>Missing one parent</span>
-              </div>
-              <div className="flex items-center">
-                <div className="w-4 h-4 bg-blue-100 border border-blue-300 rounded mr-2"></div>
-                <span>Has both parents</span>
-              </div>
+      <div className="flex flex-col lg:flex-row h-[720px]">
+        <div className="flex-1 flex flex-col">
+          <div className="px-6 py-4 border-b border-gray-100 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Ancestor Fan Chart</h3>
+              <p className="text-sm text-gray-500">Select any person to re-center the chart</p>
+            </div>
+            <div>
+              <select
+                className="border rounded-md px-3 py-2 text-sm"
+                value={rootPersonId || ''}
+                onChange={(e) => {
+                  const person = personMap.get(e.target.value)
+                  setRootPersonId(e.target.value)
+                  if (person) setSelectedPerson(person)
+                }}
+              >
+                {individuals.map(person => (
+                  <option key={person.id} value={person.id}>
+                    {person.name || 'Unknown'}
+                  </option>
+                ))}
+              </select>
             </div>
           </div>
+          <div className="flex-1 flex items-center justify-center">
+            <svg ref={svgRef} className="w-full h-full" />
+          </div>
         </div>
-
-        {/* Side panel */}
-        <div className="w-80 bg-gray-50 border-l border-gray-200 p-6">
-          <h3 className="text-lg font-semibold mb-4">Person Details</h3>
-          
+        <div className="w-full lg:w-96 bg-gray-50 border-t lg:border-t-0 lg:border-l border-gray-200 p-6 overflow-y-auto">
+          <h3 className="text-lg font-semibold mb-4">Details</h3>
           {selectedPerson ? (
             <div className="space-y-4">
               <div>
-                <h4 className="font-medium text-gray-900">
-                  {selectedPerson.name || 'Unknown Name'}
-                </h4>
-                <p className="text-sm text-gray-500">ID: {selectedPerson.id}</p>
+                <h4 className="text-xl font-semibold text-gray-900">{selectedPerson.name || 'Unknown Person'}</h4>
+                <p className="text-sm text-gray-500 mt-1">ID: {selectedPerson.id}</p>
               </div>
-
-              <div className="space-y-2">
+              <div className="grid grid-cols-2 gap-3 text-sm">
                 {selectedPerson.birthDate && (
-                  <p className="text-sm"><strong>Born:</strong> {selectedPerson.birthDate}</p>
+                  <div>
+                    <p className="text-gray-500">Born</p>
+                    <p className="font-medium text-gray-900">{selectedPerson.birthDate}</p>
+                  </div>
                 )}
                 {selectedPerson.deathDate && (
-                  <p className="text-sm"><strong>Died:</strong> {selectedPerson.deathDate}</p>
+                  <div>
+                    <p className="text-gray-500">Died</p>
+                    <p className="font-medium text-gray-900">{selectedPerson.deathDate}</p>
+                  </div>
                 )}
-                {selectedPerson.gender && (
-                  <p className="text-sm"><strong>Gender:</strong> {selectedPerson.gender === 'M' ? 'Male' : 'Female'}</p>
+                {selectedPerson.birthPlace && (
+                  <div>
+                    <p className="text-gray-500">Birth Place</p>
+                    <p className="font-medium text-gray-900">{selectedPerson.birthPlace}</p>
+                  </div>
+                )}
+                {selectedPerson.deathPlace && (
+                  <div>
+                    <p className="text-gray-500">Death Place</p>
+                    <p className="font-medium text-gray-900">{selectedPerson.deathPlace}</p>
+                  </div>
                 )}
               </div>
-
               <div>
-                <h5 className="font-medium text-gray-900 mb-2">Parents</h5>
-                <div className="space-y-1 text-sm">
-                  {selectedPerson.father ? (
-                    <p>Father: {selectedPerson.father}</p>
-                  ) : (
-                    <p className="text-red-600">Father: Unknown</p>
-                  )}
-                  {selectedPerson.mother ? (
-                    <p>Mother: {selectedPerson.mother}</p>
-                  ) : (
-                    <p className="text-red-600">Mother: Unknown</p>
-                  )}
+                <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Parents</h5>
+                <div className="mt-2 space-y-1 text-sm">
+                  <p className={selectedPerson.father ? 'text-gray-900' : 'text-red-600'}>
+                    Father: {renderParentName(selectedPerson.father, personMap)}
+                  </p>
+                  <p className={selectedPerson.mother ? 'text-gray-900' : 'text-red-600'}>
+                    Mother: {renderParentName(selectedPerson.mother, personMap)}
+                  </p>
                 </div>
               </div>
-
-              {(!selectedPerson.father || !selectedPerson.mother) && (
-                <div>
-                  <button
-                    onClick={runPredictions}
-                    disabled={loading}
-                    className="w-full bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-md text-sm font-medium disabled:opacity-50"
-                  >
-                    {loading ? 'Predicting...' : 'Predict Missing Parents'}
-                  </button>
-                </div>
-              )}
-
-              {predictions && (
-                <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-                  <h5 className="font-medium text-blue-900 mb-2">AI Predictions</h5>
-                  {predictions.length > 0 ? (
-                    <div className="space-y-2">
-                      {predictions.map((prediction: any, index: number) => (
-                        <div key={index} className="text-sm">
-                          <p className="font-medium">
-                            Predicted {prediction.relationship}: {prediction.name}
-                          </p>
-                          <p className="text-blue-700">
-                            Confidence: {(prediction.confidence * 100).toFixed(1)}%
-                          </p>
-                        </div>
-                      ))}
-                    </div>
-                  ) : (
-                    <p className="text-blue-700 text-sm">No strong predictions found</p>
-                  )}
-                </div>
-              )}
+              <div>
+                <h5 className="text-sm font-semibold text-gray-700 uppercase tracking-wide">Predicted Relatives</h5>
+                <PredictionsList
+                  entries={predictionsMap.get(selectedPerson.id || '') || []}
+                />
+              </div>
             </div>
           ) : (
-            <p className="text-gray-500 text-sm">
-              Click on a person in the family tree to view details and run AI predictions.
-            </p>
+            <p className="text-sm text-gray-500">Select a person in the fan chart to view their details.</p>
           )}
         </div>
       </div>
+    </div>
+  )
+}
+
+function buildAncestorTree(
+  person: Person,
+  personMap: Map<string, Person>,
+  predictions: Map<string, Prediction[]>,
+  relationLabel = 'Self',
+  visited = new Set<string>()
+): AncestorNode {
+  if (person.id) visited.add(person.id)
+
+  const parentIds = [person.father, person.mother].filter(Boolean) as string[]
+  const children: AncestorNode[] = []
+
+  for (const parentId of parentIds) {
+    if (visited.has(parentId)) continue
+    const parent = personMap.get(parentId)
+    if (parent) {
+      children.push(
+        buildAncestorTree(
+          parent,
+          personMap,
+          predictions,
+          parent.gender === 'F' ? 'Mother' : 'Father',
+          new Set(visited)
+        )
+      )
+    }
+  }
+
+  if (!parentIds.length) {
+    const predictedParents = predictions.get(person.id) || []
+    predictedParents.forEach(entry => {
+      children.push({
+        id: `virtual-${person.id}-${entry.relationship}-${entry.name}`,
+        name: `${entry.name} (AI)`,
+        relationLabel: entry.relationship,
+        person: {
+          id: `virtual-${person.id}-${entry.relationship}`,
+          name: entry.name,
+          confidence: entry.confidence,
+        },
+        children: []
+      })
+    })
+  }
+
+  return {
+    id: person.id,
+    name: person.name || 'Unknown',
+    person,
+    relationLabel,
+    children
+  }
+}
+
+function getNodeColor(node: AncestorNode) {
+  if (node.id.startsWith('virtual-')) return '#FDE68A'
+  if (node.relationLabel === 'Mother') return '#FCE7F3'
+  if (node.relationLabel === 'Father') return '#DBEAFE'
+  if (node.relationLabel === 'Self') return '#C7D2FE'
+  return '#E0E7FF'
+}
+
+function formatLabel(node: AncestorNode) {
+  const base = node.name || 'Unknown'
+  if (node.relationLabel === 'Self') return base
+  return `${node.relationLabel}: ${base}`
+}
+
+function renderParentName(parentId: string | undefined, personMap: Map<string, Person>) {
+  if (!parentId) return 'Unknown'
+  const parent = personMap.get(parentId)
+  return parent?.name || 'Unknown'
+}
+
+function PredictionsList({ entries }: { entries: Prediction[] }) {
+  if (!entries.length) {
+    return <p className="text-sm text-gray-500">No stored predictions yet for this person.</p>
+  }
+
+  return (
+    <div className="space-y-2">
+      {entries.map((entry, idx) => (
+        <div key={`${entry.personId}-${entry.relationship}-${idx}`} className="bg-white rounded border border-indigo-100 p-3 text-sm">
+          <p className="font-medium text-gray-900">
+            {entry.relationship}: {entry.name}
+          </p>
+          {entry.confidence !== undefined && (
+            <p className="text-indigo-700">
+              Confidence: {(entry.confidence * 100).toFixed(1)}%
+            </p>
+          )}
+        </div>
+      ))}
     </div>
   )
 }

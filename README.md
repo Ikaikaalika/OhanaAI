@@ -97,34 +97,26 @@ When first deployed, the application will show "No trained model available" for 
 
 3. **Train the Model**
    \`\`\`bash
-   cd training_data
-   pip install -r requirements.txt
-   python3 run_training.py
+   pip install -r requirements_mlx.txt   # install MLX/ONNX tooling once
+   python3 train_model_mlx.py --data-dir training_data --output-dir models/parent_predictor
    \`\`\`
 
 4. **Deploy the Model**
-   The trained model is saved to \`models/parent_predictor/\`. These artifacts are bundled for the serverless/API runtime and loaded by `/api/ml/predict` (see `next.config.js` `outputFileTracingIncludes`).
+   Training writes \`models/parent_predictor/model.onnx\`. The Next.js API loads this ONNX via `onnxruntime-node`; restart the server (or redeploy) after replacing the file.
 
-#### Alternative: Local Training Scripts
+#### Alternative: Automated Training
 
-For local iterative training (especially on Apple Silicon):
-
-\`\`\`bash
-bash setup_ml_environment.sh   # sets up Python venv with TensorFlow
-python3 train_model_m1.py      # Apple Silicon optimized
-# or
-python3 train_model.py
-\`\`\`
+- `setup_ml_environment.sh` now installs MLX packages (instead of TensorFlow) and prepares the local virtualenv.
+- `scripts/auto_train.py` can be scheduled to fetch exports and run `train_model_mlx.py` automatically.
 
 ### Model Files Checklist
 
 Place the following under \`models/parent_predictor/\`:
 
-- Keras model: \`model.h5\` or \`ohana_model.h5\` (or Apple Silicon: \`ohana_model_m1.h5\`).
-- Optional TFJS artifacts (if converted): \`model.json\` and \`group1-shard1.bin\` (and additional shards if split).
-- Optional metadata: \`training_metadata.json\`, \`training_history.png\`.
+- ONNX model: \`model.onnx\`
+- Optional metadata: \`training_metadata.json\`, \`training_history.json\`
 
-After placing files, restart the server. The predict API will load artifacts from this directory.
+After placing files, restart the server. The predict API will load the ONNX artifact from this directory.
 
 ### Continuous Training
 
@@ -153,9 +145,10 @@ Set up a cron job or GitHub Action to periodically:
 ### ML Pipeline
 
 - **Graph Construction**: Convert family trees to graph structures
-- **Feature Engineering**: Extract person and relationship features
-- **Model Training**: GNN/GAT models for link prediction
-- **Inference**: Server-side parent prediction via TensorFlow.js (tfjs-node) in `/api/ml/predict`
+- **Feature Engineering**: Extract per-individual feature vectors (12 dims)
+- **Model Training**: MLX MLP exported to ONNX
+- **Inference**: Server-side parent prediction via `onnxruntime-node` in `/api/ml/predict`
+  - Confidence filtering is controlled via `PREDICTION_CONFIDENCE_THRESHOLD` (default 0.4) and `PREDICTION_MAX_SUGGESTIONS` (optional).
 
 ## API Endpoints
 
@@ -191,7 +184,7 @@ Run locally with all data, models, and emails hosted on this device:
 
 3) Data storage
 
-   - Uploaded GEDCOM files are saved under `uploads/` (configurable via `STORAGE_ROOT`/`UPLOADS_DIR`)
+   - Uploaded GEDCOM files are saved under `uploads/` (configurable via `STORAGE_ROOT`/`UPLOADS_DIR`). Each upload is hashed per-user so duplicate GEDCOMs are rejected with a helpful message.
    - Models are loaded from `models/parent_predictor/`
    - Training exports written to `training_data/` (configurable via `TRAINING_DATA_DIR`)
 
@@ -202,14 +195,17 @@ Run locally with all data, models, and emails hosted on this device:
    UPLOADS_DIR=uploads                 # relative to STORAGE_ROOT if not absolute
    TRAINING_DATA_DIR=training_data     # relative to STORAGE_ROOT if not absolute
    ML_EXPORTS_DIR=exports/ml_training  # where export-user-data writes files
+   SYNC_GEDCOM_PROCESSING=true         # block upload response until parsing + inference complete
+   PREDICTION_CONFIDENCE_THRESHOLD=0.4 # minimum confidence for suggested parents
+   PREDICTION_MAX_SUGGESTIONS=5        # cap suggestions per missing parent (set 0 for unlimited)
    ```
 
    If you leave these blank the server stores files alongside the app directory (or `/tmp/ohana-ai` on Vercel). All paths are created automatically at runtime.
 
-5) GEDCOM processing queue
+5) GEDCOM processing
 
-   - Uploads are parsed and converted to ML-ready data by an in-process background queue.
-   - The API responds as soon as the file is stored; the queue continues building the family tree, so keep the Node.js server running until processing completes (`FileList` will show status).
+   - By default (`SYNC_GEDCOM_PROCESSING=true`) uploads stay open until parsing, ML data prep, and ONNX inference finish so users can wait for predictions.
+   - Set the env to `false` to fall back to the asynchronous queue (`lib/jobs/gedcomProcessor.ts`).
 
 4) Notifications (optional)
 

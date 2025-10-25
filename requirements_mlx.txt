@@ -1,0 +1,5 @@
+mlx
+mlx-data
+onnx
+numpy
+scikit-learn

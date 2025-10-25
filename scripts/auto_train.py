@@ -41,7 +41,7 @@ class OhanaTrainingPipeline:
             'backup_models': True,
             'auto_deploy': False,  # Set to True for automatic deployment
             'notification_webhook': None,  # Optional Slack/Discord webhook
-            'training_script': 'train_model_m1.py'
+            'training_script': 'train_model_mlx.py'
         }
         
         try:
@@ -138,7 +138,7 @@ class OhanaTrainingPipeline:
             cmd = [
                 sys.executable,
                 self.config['training_script'],
-                '--data-file', str(data_file),
+                '--data-dir', str(self.project_root / 'training_data'),
                 '--output-dir', str(self.models_dir)
             ]
             
@@ -306,14 +306,7 @@ class OhanaTrainingPipeline:
                 self.update_training_status('failed', 'Model training failed')
                 return False
             
-            # 6. Convert to TensorFlow.js
-            conversion_success = self.convert_to_tensorflowjs()
-            
-            if not conversion_success:
-                self.update_training_status('failed', 'Model conversion failed')
-                return False
-            
-            # 7. Deploy model
+            # 6. Deploy model (ONNX artifacts are ready after training)
             deploy_success = self.deploy_model()
             
             if deploy_success:

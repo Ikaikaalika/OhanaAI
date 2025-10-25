@@ -28,11 +28,8 @@ echo "⬆️  Upgrading pip..."
 pip install --upgrade pip
 
 # Install M1-optimized packages
-echo "🔧 Installing TensorFlow with Metal support..."
-pip install tensorflow-macos tensorflow-metal
-
-echo "📊 Installing scientific computing packages..."
-pip install -r requirements_m1.txt
+echo "🔧 Installing MLX and ONNX tooling..."
+pip install mlx mlx-data onnx numpy scikit-learn
 
 # Create necessary directories
 echo "📁 Creating project directories..."
@@ -89,72 +86,38 @@ except Exception as e:
     fi
 fi
 
-# Test TensorFlow installation
-echo "🧪 Testing TensorFlow installation..."
+# Test MLX installation
+echo "🧪 Testing MLX installation..."
 python3 -c "
-import tensorflow as tf
-print(f'TensorFlow version: {tf.__version__}')
-print(f'GPU available: {len(tf.config.list_physical_devices(\"GPU\")) > 0}')
-if len(tf.config.list_physical_devices('GPU')) > 0:
-    print('✅ Metal GPU acceleration available!')
-else:
-    print('⚠️  GPU not detected, using CPU only')
-print('✅ TensorFlow installation successful!')
+import mlx.core as mx
+import mlx.nn as nn
+x = mx.random.uniform(shape=(4, 12))
+m = nn.Linear(12, 3)
+y = m(x)
+mx.eval(y)
+print('✅ MLX operational. Output shape:', y.shape)
 "
 
 # Create a simple test script
 echo "📝 Creating test script..."
 cat > test_ml_setup.py << 'EOF'
 #!/usr/bin/env python3
-"""Test script for Ohana AI ML setup"""
+"""Test script for Ohana AI MLX setup"""
 
-import tensorflow as tf
+import mlx.core as mx
+import mlx.nn as nn
 import numpy as np
-import networkx as nx
-import matplotlib.pyplot as plt
 from datetime import datetime
 
 def test_setup():
-    print("=== Ohana AI ML Setup Test ===")
+    print("=== Ohana AI MLX Setup Test ===")
     print(f"Test started: {datetime.now()}")
-    
-    # Test TensorFlow
-    print(f"\n1. TensorFlow: {tf.__version__}")
-    print(f"   GPU devices: {len(tf.config.list_physical_devices('GPU'))}")
-    
-    # Test basic operations
-    print("\n2. Testing basic TensorFlow operations...")
-    a = tf.constant([[1.0, 2.0], [3.0, 4.0]])
-    b = tf.constant([[1.0, 1.0], [0.0, 1.0]])
-    c = tf.matmul(a, b)
-    print(f"   Matrix multiplication result: {c.numpy()}")
-    
-    # Test NetworkX
-    print(f"\n3. NetworkX: {nx.__version__}")
-    G = nx.Graph()
-    G.add_edges_from([(1, 2), (2, 3), (3, 1)])
-    print(f"   Created test graph with {G.number_of_nodes()} nodes and {G.number_of_edges()} edges")
-    
-    # Test a simple neural network
-    print("\n4. Testing neural network creation...")
-    model = tf.keras.Sequential([
-        tf.keras.layers.Dense(10, activation='relu', input_shape=(5,)),
-        tf.keras.layers.Dense(3, activation='sigmoid')
-    ])
-    model.compile(optimizer='adam', loss='binary_crossentropy')
-    print(f"   Created model with {model.count_params()} parameters")
-    
-    # Test with sample data
-    X = np.random.random((100, 5))
-    y = np.random.randint(2, size=(100, 3))
-    
-    print("\n5. Testing model training...")
-    history = model.fit(X, y, epochs=3, verbose=0, validation_split=0.2)
-    final_loss = history.history['loss'][-1]
-    print(f"   Final training loss: {final_loss:.4f}")
-    
-    print("\n✅ All tests passed! ML environment is ready.")
-    print("🚀 You can now run: python train_model_m1.py")
+    x = mx.random.uniform(shape=(8, 12))
+    model = nn.Sequential(nn.Linear(12, 32), nn.relu, nn.Linear(32, 3), nn.sigmoid)
+    y = model(x)
+    mx.eval(y)
+    print("Output sample:", np.array(y)[0])
+    print("✅ MLX forward pass succeeded")
 
 if __name__ == "__main__":
     test_setup()

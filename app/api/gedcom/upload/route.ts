@@ -6,7 +6,9 @@ import { gedcomFiles } from '@/lib/db/schema'
 import { parseGedcom } from '@/lib/gedcom/parser'
 import { v4 as uuidv4 } from 'uuid'
 import { saveUploadFile } from '@/lib/storage'
-import { enqueueGedcomProcessing } from '@/lib/jobs/gedcomProcessor'
+import { enqueueGedcomProcessing, processGedcomImmediately } from '@/lib/jobs/gedcomProcessor'
+import { createHash } from 'crypto'
+import { and, eq } from 'drizzle-orm'
 
 export const runtime = 'nodejs'
 
@@ -48,6 +50,29 @@ export async function POST(request: NextRequest) {
     const bytes = await file.arrayBuffer()
     const buffer = Buffer.from(bytes)
 
+    const fileHash = createHash('sha256').update(buffer).digest('hex')
+
+    const duplicate = await db
+      .select({ id: gedcomFiles.id })
+      .from(gedcomFiles)
+      .where(
+        and(
+          eq(gedcomFiles.userId, session.user.id),
+          eq(gedcomFiles.fileHash, fileHash)
+        )
+      )
+      .limit(1)
+
+    if (duplicate.length) {
+      return NextResponse.json(
+        {
+          error: 'Duplicate upload detected. This GEDCOM file already exists in your library.',
+          fileId: duplicate[0].id
+        },
+        { status: 409 }
+      )
+    }
+
     // Generate unique filename
     const filename = `${uuidv4()}.ged`
     await saveUploadFile(filename, buffer)
@@ -62,20 +87,33 @@ export async function POST(request: NextRequest) {
       filename,
       originalName: file.name,
       fileSize: file.size,
+      fileHash,
       parsedData,
       isProcessed: false,
     }).returning()
 
-    // Process asynchronously via background queue
+    const runSynchronously = (process.env.SYNC_GEDCOM_PROCESSING ?? 'true') !== 'false'
+
+    if (runSynchronously) {
+      await processGedcomImmediately({ fileId: newFile.id, parsedData })
+      return NextResponse.json(
+        {
+          message: 'File uploaded and processed successfully. Predictions are ready.',
+          fileId: newFile.id
+        },
+        { status: 201 }
+      )
+    }
+
     enqueueGedcomProcessing({
       fileId: newFile.id,
       parsedData,
     })
 
     return NextResponse.json(
-      { 
+      {
         message: 'File uploaded successfully. Processing will continue in the background.',
-        fileId: newFile.id 
+        fileId: newFile.id
       },
       { status: 201 }
     )

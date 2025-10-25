@@ -5,6 +5,9 @@ import { db } from '@/lib/db'
 import { gedcomFiles, familyTrees } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
 import { loadModel, runInference } from '@/lib/ml/inference'
+import { sendEmail, formatAdminEmail } from '@/lib/email/mailer'
+
+export const runtime = 'nodejs'
 
 export async function POST(request: NextRequest) {
   try {
@@ -83,13 +86,37 @@ export async function POST(request: NextRequest) {
 
     const predictions = await runInference(familyTree[0], personId)
 
-    // Update the file with the latest predictions
+    const existingPredictions = normalizeStoredPredictions(file[0].predictions)
+    const updatedPredictions = existingPredictions.filter(entry => entry.personId !== personId)
+    if (Array.isArray(predictions) && predictions.length > 0) {
+      updatedPredictions.push({
+        personId,
+        predictions
+      })
+    }
+
     await db.update(gedcomFiles)
       .set({ 
-        predictions: predictions,
+        predictions: updatedPredictions,
         modelVersion: 'v1.0' // Update this based on actual model version
       })
       .where(eq(gedcomFiles.id, gedcomFileId))
+
+    // Notify when predictions occur for missing parents
+    if (Array.isArray(predictions) && predictions.length > 0) {
+      const admin = process.env.ADMIN_EMAIL
+      if (admin) {
+        const person = individuals.find((p: any) => p.id === personId)
+        const payload = formatAdminEmail('New parent predictions generated', [
+          `User ID: ${session.user.id}`,
+          `GEDCOM File ID: ${gedcomFileId}`,
+          `Target Person: ${person?.name || personId}`,
+          `Predictions: ${predictions.map((p: any) => `${p.relationship}:${p.name}(${p.confidence})`).join(', ')}`,
+          `Time: ${new Date().toISOString()}`,
+        ])
+        sendEmail({ to: admin, ...payload }).catch(() => {})
+      }
+    }
 
     return NextResponse.json({
       predictions,
@@ -104,4 +131,19 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     )
   }
+}
+
+type StoredPredictionEntry = {
+  personId: string
+  predictions: any[]
+}
+
+function normalizeStoredPredictions(payload: unknown): StoredPredictionEntry[] {
+  if (!Array.isArray(payload)) return []
+  return payload
+    .filter((entry: any) => entry?.personId && Array.isArray(entry.predictions))
+    .map((entry: any) => ({
+      personId: entry.personId as string,
+      predictions: entry.predictions
+    }))
 }
