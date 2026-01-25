@@ -103,7 +103,7 @@ export function FamilyTreeViewer({ familyTree, gedcomFile }: FamilyTreeViewerPro
       .selectAll('g')
       .data(root.descendants())
       .join('g')
-      .attr('transform', (d) => `rotate(${(d.x * 180) / Math.PI - 90}) translate(${d.y},0)`)
+      .attr('transform', (d) => `rotate(${((d.x ?? 0) * 180) / Math.PI - 90}) translate(${d.y ?? 0},0)`)
 
     nodeGroup.append('circle')
       .attr('r', (d) => d.depth === 0 ? 9 : 5)
@@ -119,9 +119,9 @@ export function FamilyTreeViewer({ familyTree, gedcomFile }: FamilyTreeViewerPro
 
     nodeGroup.append('text')
       .attr('dy', '0.31em')
-      .attr('x', (d) => d.x < Math.PI ? 10 : -10)
-      .attr('text-anchor', (d) => d.x < Math.PI ? 'start' : 'end')
-      .attr('transform', (d) => d.x >= Math.PI ? 'rotate(180)' : '')
+      .attr('x', (d) => (d.x ?? 0) < Math.PI ? 10 : -10)
+      .attr('text-anchor', (d) => (d.x ?? 0) < Math.PI ? 'start' : 'end')
+      .attr('transform', (d) => (d.x ?? 0) >= Math.PI ? 'rotate(180)' : '')
       .text((d) => formatLabel(d.data))
       .style('font-size', '12px')
       .style('fill', '#1F2937')

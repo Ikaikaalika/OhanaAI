@@ -12,31 +12,15 @@ export const runtime = 'nodejs'
 // Secure API endpoint for exporting user data to your local machine
 export async function POST(request: NextRequest) {
   try {
-    // Verify API key/secret (primary check)
+    // Verify API key/secret
     const { apiKey, includeMetadata = true } = await request.json()
-    const originHeader = request.headers.get('origin') || ''
-    if (apiKey !== process.env.ML_EXPORT_API_KEY) {
-      const allowedOrigins = [
-        'http://localhost:3000',
-        'https://your-app.vercel.app', // Replace with your actual Vercel URL
-        process.env.NEXTAUTH_URL || ''
-      ].filter(Boolean)
-      if (!originHeader || !allowedOrigins.includes(originHeader)) {
-        return NextResponse.json(
-          { error: 'Unauthorized' },
-          { status: 401 }
-        )
-      }
-    }
 
     if (!apiKey || apiKey !== process.env.ML_EXPORT_API_KEY) {
       return NextResponse.json(
-        { error: 'Invalid API key or origin' },
+        { error: 'Unauthorized' },
         { status: 401 }
       )
     }
-
-    console.log('Starting ML data export...')
 
     // Get all training data that hasn't been exported yet
     const newTrainingData = await db
@@ -94,7 +78,7 @@ export async function POST(request: NextRequest) {
     await writeFile(filepath, JSON.stringify(exportData, null, 2))
 
     // Generate webhook URL for your local machine to fetch the data
-    const webhookBase = originHeader || process.env.NEXTAUTH_URL || ''
+    const webhookBase = process.env.NEXTAUTH_URL || ''
     const webhookUrl = webhookBase
       ? `${webhookBase.replace(/\/$/, '')}/api/ml/download-export/${filename}?key=${apiKey}`
       : null
@@ -108,8 +92,6 @@ export async function POST(request: NextRequest) {
 
     // Generate training instructions
     const instructions = generateTrainingInstructions(newTrainingData.length, filename)
-
-    console.log(`Exported ${newTrainingData.length} training examples`)
 
     return NextResponse.json({
       message: 'Training data exported successfully',

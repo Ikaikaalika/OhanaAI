@@ -109,6 +109,17 @@ When first deployed, the application will show "No trained model available" for 
 - `setup_ml_environment.sh` now installs MLX packages (instead of TensorFlow) and prepares the local virtualenv.
 - `scripts/auto_train.py` can be scheduled to fetch exports and run `train_model_mlx.py` automatically.
 
+### Training labels & attributes
+
+Each `ml_training_data.labels` entry now stores a richer snapshot per person so future models can predict detailed facts:
+
+- `name`, `gender`, `birthDate`, `birthPlace`, `deathDate`, `deathPlace`
+- `residences`: array of `{ place, date }` pulled from GEDCOM `RESI` events
+- `spouses`: array of `{ id, name, birthDate, birthPlace }` derived from family relationships
+- `missingAttributes`: booleans indicating whether each attribute is currently unknown
+
+This phase lays the groundwork for upcoming models that infer not just “is a parent missing?” but also the concrete names, dates, and locations needed to fill the tree.
+
 ### Model Files Checklist
 
 Place the following under \`models/parent_predictor/\`:

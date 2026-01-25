@@ -8,9 +8,9 @@ const nextConfig = {
   },
   webpack: (config, { isServer }) => {
     if (isServer) {
-      // Avoid bundling native tfjs-node in Next server build; require at runtime instead
+      // Externalize onnxruntime-node to avoid bundling native binaries
       config.externals = config.externals || []
-      config.externals.push('@tensorflow/tfjs-node')
+      config.externals.push('onnxruntime-node')
     } else {
       config.resolve.fallback = {
         ...config.resolve.fallback,

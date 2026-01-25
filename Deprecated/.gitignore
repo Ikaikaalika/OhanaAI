@@ -86,3 +86,11 @@ node_modules
 .next/
 .env*.local
 .vercel
+
+# Build artifacts
+.next-dev*.log
+.next-dev*.pid
+tsconfig.tsbuildinfo
+
+# Large test files
+Hussey Ohana.ged.txt

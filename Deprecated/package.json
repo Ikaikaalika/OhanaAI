@@ -13,8 +13,6 @@
   },
   "dependencies": {
     "@auth/drizzle-adapter": "^0.3.2",
-    "@tensorflow/tfjs": "^4.15.0",
-    "@tensorflow/tfjs-node": "^4.15.0",
     "bcryptjs": "^2.4.3",
     "d3": "^7.9.0",
     "dotenv": "^17.2.3",
@@ -34,7 +32,9 @@
   },
   "devDependencies": {
     "@types/bcryptjs": "^2.4.6",
+    "@types/d3": "^7.4.3",
     "@types/node": "^20",
+    "@types/nodemailer": "^7.0.5",
     "@types/react": "^18",
     "@types/react-dom": "^18",
     "@types/uuid": "^9.0.7",
