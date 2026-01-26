@@ -1,0 +1,1519 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OhanaAI - Missing Ancestor Predictor</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+
+        /* Header */
+        .header {
+            padding: 20px 30px;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .logo h1 {
+            font-size: 1.5em;
+            background: linear-gradient(135deg, #4ecdc4, #44a08d);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 15px;
+        }
+
+        /* Upload Section */
+        .upload-section {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            min-height: 80vh;
+            padding: 40px;
+        }
+
+        .upload-box {
+            background: rgba(255,255,255,0.05);
+            border: 2px dashed rgba(255,255,255,0.2);
+            border-radius: 20px;
+            padding: 60px 80px;
+            text-align: center;
+            cursor: pointer;
+            transition: all 0.3s;
+            max-width: 600px;
+        }
+
+        .upload-box:hover {
+            border-color: #4ecdc4;
+            background: rgba(78, 205, 196, 0.1);
+        }
+
+        .upload-box.dragover {
+            border-color: #4ecdc4;
+            background: rgba(78, 205, 196, 0.2);
+            transform: scale(1.02);
+        }
+
+        .upload-icon {
+            font-size: 4em;
+            margin-bottom: 20px;
+        }
+
+        .upload-box h2 {
+            margin-bottom: 10px;
+        }
+
+        .upload-box p {
+            opacity: 0.7;
+            margin-bottom: 20px;
+        }
+
+        .btn {
+            background: linear-gradient(135deg, #4ecdc4, #44a08d);
+            border: none;
+            padding: 12px 30px;
+            border-radius: 8px;
+            color: #fff;
+            font-size: 1em;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(78, 205, 196, 0.4);
+        }
+
+        .btn-secondary {
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.2);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255,255,255,0.2);
+            box-shadow: none;
+        }
+
+        /* Main App Layout */
+        .app-container {
+            display: none;
+            height: calc(100vh - 70px);
+        }
+
+        .app-container.active {
+            display: flex;
+        }
+
+        /* Sidebar */
+        .sidebar {
+            width: 350px;
+            background: rgba(0,0,0,0.3);
+            border-right: 1px solid rgba(255,255,255,0.1);
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .search-box {
+            padding: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .search-input {
+            width: 100%;
+            padding: 12px 15px;
+            background: rgba(255,255,255,0.1);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            color: #fff;
+            font-size: 14px;
+        }
+
+        .search-input::placeholder {
+            color: rgba(255,255,255,0.5);
+        }
+
+        .search-input:focus {
+            outline: none;
+            border-color: #4ecdc4;
+        }
+
+        .stats-bar {
+            padding: 12px 15px;
+            background: rgba(78, 205, 196, 0.1);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+            font-size: 13px;
+            display: flex;
+            gap: 15px;
+        }
+
+        .stat {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+        }
+
+        .stat-value {
+            font-weight: bold;
+            color: #4ecdc4;
+        }
+
+        .person-list {
+            flex: 1;
+            overflow-y: auto;
+            padding: 10px;
+        }
+
+        .person-item {
+            padding: 12px 15px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .person-item:hover {
+            background: rgba(255,255,255,0.08);
+        }
+
+        .person-item.selected {
+            background: rgba(78, 205, 196, 0.15);
+            border-left-color: #4ecdc4;
+        }
+
+        .person-item.missing-ancestors {
+            border-left-color: #ff6b6b;
+        }
+
+        .person-name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .person-dates {
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
+        .person-badges {
+            display: flex;
+            gap: 5px;
+            margin-top: 6px;
+        }
+
+        .badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
+            background: rgba(255,255,255,0.1);
+        }
+
+        .badge.warning {
+            background: rgba(255, 107, 107, 0.3);
+            color: #ff6b6b;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .tabs {
+            display: flex;
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover {
+            background: rgba(255,255,255,0.05);
+        }
+
+        .tab.active {
+            border-bottom-color: #4ecdc4;
+            background: rgba(78, 205, 196, 0.1);
+        }
+
+        .tab-content {
+            flex: 1;
+            overflow: hidden;
+            display: none;
+        }
+
+        .tab-content.active {
+            display: flex;
+        }
+
+        /* Fan Chart */
+        .fanchart-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        #fanchart {
+            background: rgba(255,255,255,0.02);
+            border-radius: 50%;
+        }
+
+        /* Pedigree View */
+        .pedigree-container {
+            flex: 1;
+            overflow: auto;
+            padding: 30px;
+        }
+
+        .pedigree-tree {
+            display: flex;
+            gap: 30px;
+            min-width: max-content;
+        }
+
+        .pedigree-generation {
+            display: flex;
+            flex-direction: column;
+            justify-content: space-around;
+            gap: 10px;
+        }
+
+        .pedigree-person {
+            background: rgba(255,255,255,0.05);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 8px;
+            padding: 12px 16px;
+            min-width: 180px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+
+        .pedigree-person:hover {
+            background: rgba(255,255,255,0.1);
+            border-color: #4ecdc4;
+        }
+
+        .pedigree-person.male {
+            border-left: 3px solid #4a90d9;
+        }
+
+        .pedigree-person.female {
+            border-left: 3px solid #d94a7b;
+        }
+
+        .pedigree-person.missing {
+            border: 2px dashed #ff6b6b;
+            background: rgba(255, 107, 107, 0.1);
+        }
+
+        .pedigree-person .name {
+            font-weight: 500;
+            margin-bottom: 4px;
+        }
+
+        .pedigree-person .dates {
+            font-size: 12px;
+            opacity: 0.6;
+        }
+
+        .pedigree-person .prediction-badge {
+            margin-top: 8px;
+            font-size: 11px;
+            color: #ff6b6b;
+        }
+
+        /* Details Panel */
+        .details-panel {
+            width: 350px;
+            background: rgba(0,0,0,0.3);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .details-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .details-name {
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 8px;
+        }
+
+        .details-section {
+            margin-bottom: 20px;
+        }
+
+        .details-section h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.6;
+            margin-bottom: 10px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .info-label {
+            opacity: 0.7;
+        }
+
+        .prediction-card {
+            background: rgba(255, 107, 107, 0.15);
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 10px;
+        }
+
+        .prediction-card h4 {
+            color: #ff6b6b;
+            margin-bottom: 8px;
+        }
+
+        .confidence-bar {
+            height: 6px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 3px;
+            margin: 8px 0;
+            overflow: hidden;
+        }
+
+        .confidence-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #ff6b6b, #ff9f43);
+            border-radius: 3px;
+        }
+
+        .candidate-list {
+            margin-top: 12px;
+        }
+
+        .candidate-item {
+            background: rgba(255,255,255,0.05);
+            padding: 10px;
+            border-radius: 6px;
+            margin-bottom: 6px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .candidate-item:hover {
+            background: rgba(78, 205, 196, 0.2);
+        }
+
+        .candidate-name {
+            font-weight: 500;
+        }
+
+        .candidate-info {
+            font-size: 12px;
+            opacity: 0.7;
+        }
+
+        /* Tooltip */
+        .tooltip {
+            position: fixed;
+            background: rgba(20, 20, 40, 0.95);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 13px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 280px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            display: none;
+        }
+
+        /* Loading */
+        .loading-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .loading-overlay.active {
+            display: flex;
+        }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #4ecdc4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Arc styles */
+        .arc {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+
+        .arc:hover {
+            opacity: 0.8;
+        }
+
+        .arc-label {
+            font-size: 10px;
+            fill: #fff;
+            pointer-events: none;
+        }
+
+        .missing-arc {
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+
+        /* Filter tabs */
+        .filter-tabs {
+            display: flex;
+            padding: 10px 15px;
+            gap: 8px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .filter-tab {
+            padding: 6px 12px;
+            border-radius: 20px;
+            font-size: 12px;
+            cursor: pointer;
+            background: rgba(255,255,255,0.05);
+            transition: all 0.2s;
+        }
+
+        .filter-tab:hover {
+            background: rgba(255,255,255,0.1);
+        }
+
+        .filter-tab.active {
+            background: #4ecdc4;
+            color: #1a1a2e;
+        }
+    </style>
+</head>
+<body>
+    <!-- Header -->
+    <div class="header">
+        <div class="logo">
+            <span style="font-size: 1.8em;">🌺</span>
+            <h1>OhanaAI</h1>
+        </div>
+        <div class="header-actions" id="headerActions" style="display: none;">
+            <button class="btn btn-secondary" onclick="resetApp()">Upload New File</button>
+        </div>
+    </div>
+
+    <!-- Upload Section -->
+    <div class="upload-section" id="uploadSection">
+        <div class="upload-box" id="uploadBox">
+            <div class="upload-icon">📁</div>
+            <h2>Upload Your GEDCOM File</h2>
+            <p>Drag and drop your .ged file here, or click to browse</p>
+            <button class="btn">Choose File</button>
+            <input type="file" id="fileInput" accept=".ged,.gedcom,.txt" style="display: none;">
+        </div>
+        <p style="margin-top: 20px; opacity: 0.5; font-size: 14px;">
+            Your file is processed entirely in your browser. No data is uploaded to any server.
+        </p>
+    </div>
+
+    <!-- Main App -->
+    <div class="app-container" id="appContainer">
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <div class="search-box">
+                <input type="text" class="search-input" id="searchInput" placeholder="Search by name...">
+            </div>
+            <div class="stats-bar" id="statsBar">
+                <div class="stat">
+                    <span>Total:</span>
+                    <span class="stat-value" id="statTotal">0</span>
+                </div>
+                <div class="stat">
+                    <span>Missing:</span>
+                    <span class="stat-value" id="statMissing">0</span>
+                </div>
+            </div>
+            <div class="filter-tabs">
+                <div class="filter-tab active" data-filter="all">All</div>
+                <div class="filter-tab" data-filter="missing">Missing Ancestors</div>
+                <div class="filter-tab" data-filter="complete">Complete</div>
+            </div>
+            <div class="person-list" id="personList"></div>
+        </div>
+
+        <!-- Main Content -->
+        <div class="main-content">
+            <div class="tabs">
+                <div class="tab active" data-tab="fanchart">Fan Chart</div>
+                <div class="tab" data-tab="pedigree">Pedigree View</div>
+            </div>
+
+            <div class="tab-content active" id="fanchartTab">
+                <div class="fanchart-container">
+                    <svg id="fanchart"></svg>
+                </div>
+            </div>
+
+            <div class="tab-content" id="pedigreeTab">
+                <div class="pedigree-container" id="pedigreeContainer"></div>
+            </div>
+        </div>
+
+        <!-- Details Panel -->
+        <div class="details-panel" id="detailsPanel">
+            <div class="details-header">
+                <div class="details-name" id="detailsName">Select a person</div>
+                <div class="details-dates" id="detailsDates"></div>
+            </div>
+            <div id="detailsContent">
+                <p style="opacity: 0.5;">Click on a person to view their details and predictions.</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Tooltip -->
+    <div class="tooltip" id="tooltip"></div>
+
+    <!-- Loading Overlay -->
+    <div class="loading-overlay" id="loadingOverlay">
+        <div class="spinner"></div>
+        <div id="loadingText">Processing GEDCOM file...</div>
+    </div>
+
+    <script>
+        // ============================================================================
+        // Global State
+        // ============================================================================
+        let individuals = new Map();
+        let families = new Map();
+        let predictions = new Map();
+        let selectedPersonId = null;
+        let currentFilter = 'all';
+
+        // ============================================================================
+        // GEDCOM Parser
+        // ============================================================================
+        function parseGedcom(text) {
+            const lines = text.split(/\r?\n/);
+            const inds = new Map();
+            const fams = new Map();
+
+            let currentRecord = null;
+            let currentType = null;
+            let currentEvent = null;
+
+            for (const line of lines) {
+                const match = line.match(/^(\d+)\s+(?:(@[^@]+@)\s+)?(\S+)(?:\s+(.*))?$/);
+                if (!match) continue;
+
+                const [, levelStr, pointer, tag, value] = match;
+                const level = parseInt(levelStr);
+
+                if (level === 0) {
+                    currentEvent = null;
+                    if (pointer) {
+                        if (tag === 'INDI' || value === 'INDI') {
+                            currentRecord = {
+                                id: pointer,
+                                givenName: '',
+                                surname: '',
+                                gender: null,
+                                birthYear: null,
+                                birthPlace: null,
+                                deathYear: null,
+                                deathPlace: null,
+                                father: null,
+                                mother: null,
+                                spouses: [],
+                                children: [],
+                                siblings: []
+                            };
+                            currentType = 'INDI';
+                            inds.set(pointer, currentRecord);
+                        } else if (tag === 'FAM' || value === 'FAM') {
+                            currentRecord = {
+                                id: pointer,
+                                husband: null,
+                                wife: null,
+                                children: []
+                            };
+                            currentType = 'FAM';
+                            fams.set(pointer, currentRecord);
+                        } else {
+                            currentRecord = null;
+                            currentType = null;
+                        }
+                    } else {
+                        currentRecord = null;
+                        currentType = null;
+                    }
+                    continue;
+                }
+
+                if (!currentRecord) continue;
+
+                if (level === 1) {
+                    currentEvent = null;
+                    if (currentType === 'INDI') {
+                        if (tag === 'NAME') {
+                            const surnameMatch = value?.match(/\/([^/]+)\//);
+                            const givenMatch = value?.match(/^([^/]+)\//);
+                            currentRecord.surname = surnameMatch ? surnameMatch[1].trim() : '';
+                            currentRecord.givenName = givenMatch ? givenMatch[1].trim() : '';
+                        } else if (tag === 'SEX') {
+                            currentRecord.gender = value === 'M' ? 'M' : value === 'F' ? 'F' : null;
+                        } else if (tag === 'BIRT') {
+                            currentEvent = 'BIRT';
+                        } else if (tag === 'DEAT') {
+                            currentEvent = 'DEAT';
+                        }
+                    } else if (currentType === 'FAM') {
+                        if (tag === 'HUSB') currentRecord.husband = value;
+                        else if (tag === 'WIFE') currentRecord.wife = value;
+                        else if (tag === 'CHIL') currentRecord.children.push(value);
+                    }
+                } else if (level === 2 && currentEvent) {
+                    if (tag === 'DATE') {
+                        const yearMatch = value?.match(/\b(\d{4})\b/);
+                        if (yearMatch) {
+                            if (currentEvent === 'BIRT') currentRecord.birthYear = parseInt(yearMatch[1]);
+                            else if (currentEvent === 'DEAT') currentRecord.deathYear = parseInt(yearMatch[1]);
+                        }
+                    } else if (tag === 'PLAC') {
+                        if (currentEvent === 'BIRT') currentRecord.birthPlace = value;
+                        else if (currentEvent === 'DEAT') currentRecord.deathPlace = value;
+                    }
+                }
+            }
+
+            // Build relationships
+            for (const [famId, fam] of fams) {
+                for (const childId of fam.children) {
+                    const child = inds.get(childId);
+                    if (child) {
+                        if (fam.husband) child.father = fam.husband;
+                        if (fam.wife) child.mother = fam.wife;
+                    }
+                }
+
+                if (fam.husband && fam.wife) {
+                    const husband = inds.get(fam.husband);
+                    const wife = inds.get(fam.wife);
+                    if (husband && !husband.spouses.includes(fam.wife)) husband.spouses.push(fam.wife);
+                    if (wife && !wife.spouses.includes(fam.husband)) wife.spouses.push(fam.husband);
+                }
+
+                // Siblings
+                for (let i = 0; i < fam.children.length; i++) {
+                    for (let j = i + 1; j < fam.children.length; j++) {
+                        const c1 = inds.get(fam.children[i]);
+                        const c2 = inds.get(fam.children[j]);
+                        if (c1 && !c1.siblings.includes(fam.children[j])) c1.siblings.push(fam.children[j]);
+                        if (c2 && !c2.siblings.includes(fam.children[i])) c2.siblings.push(fam.children[i]);
+                    }
+                }
+
+                // Children
+                if (fam.husband) {
+                    const parent = inds.get(fam.husband);
+                    if (parent) {
+                        for (const childId of fam.children) {
+                            if (!parent.children.includes(childId)) parent.children.push(childId);
+                        }
+                    }
+                }
+                if (fam.wife) {
+                    const parent = inds.get(fam.wife);
+                    if (parent) {
+                        for (const childId of fam.children) {
+                            if (!parent.children.includes(childId)) parent.children.push(childId);
+                        }
+                    }
+                }
+            }
+
+            return { individuals: inds, families: fams };
+        }
+
+        // ============================================================================
+        // Feature Extraction & Prediction (simplified in-browser version)
+        // ============================================================================
+        function extractFeatures(person) {
+            const features = new Float32Array(176);
+
+            // Demographic
+            features[0] = person.gender === null ? 1 : 0;
+            features[1] = person.gender === 'M' ? 1 : 0;
+            features[2] = person.gender === 'F' ? 1 : 0;
+            features[3] = person.givenName ? 1 : 0;
+            features[4] = person.surname ? 1 : 0;
+            features[5] = Math.min((person.givenName?.length || 0) / 20, 1);
+            features[6] = Math.min((person.surname?.length || 0) / 20, 1);
+
+            // Temporal
+            const birthNorm = person.birthYear ? (person.birthYear - 1700) / 400 : 0;
+            features[8] = birthNorm;
+            features[10] = person.birthYear ? 1 : 0;
+            features[11] = person.deathYear ? 1 : 0;
+
+            // Graph structural
+            const totalConn = (person.father ? 1 : 0) + (person.mother ? 1 : 0) +
+                              person.spouses.length + person.children.length + person.siblings.length;
+            features[120] = Math.min(totalConn / 20, 1);
+            features[125] = (!person.father && !person.mother) ? 1 : 0;
+            features[126] = person.children.length === 0 ? 1 : 0;
+            features[127] = (person.father && person.mother) ? 1 : 0;
+
+            // Relationship
+            features[136] = person.father ? 0 : 1;
+            features[137] = person.mother ? 0 : 1;
+            features[138] = (!person.father && !person.mother) ? 1 : 0;
+            features[139] = (person.father && person.mother) ? 1 : 0;
+            features[140] = person.spouses.length === 0 ? 1 : 0;
+
+            return features;
+        }
+
+        function runHeuristicPrediction(person) {
+            // Simple heuristic prediction when ONNX isn't available
+            return {
+                missingFather: person.father ? 0.1 : 0.9,
+                missingMother: person.mother ? 0.1 : 0.9,
+                missingSpouse: person.spouses.length > 0 ? 0.2 : 0.7,
+                missingChildren: person.children.length > 0 ? 0.2 : 0.6,
+                missingSiblings: person.siblings.length > 0 ? 0.3 : 0.7
+            };
+        }
+
+        function generatePredictions() {
+            for (const [id, person] of individuals) {
+                predictions.set(id, runHeuristicPrediction(person));
+            }
+        }
+
+        // ============================================================================
+        // Find Candidates
+        // ============================================================================
+        function findCandidates(personId, relationType) {
+            const person = individuals.get(personId);
+            if (!person) return [];
+
+            const candidates = [];
+
+            for (const [candId, cand] of individuals) {
+                if (candId === personId) continue;
+                if (person.father === candId || person.mother === candId) continue;
+                if (person.spouses.includes(candId)) continue;
+
+                let score = 0;
+                const reasons = [];
+
+                if (relationType === 'father') {
+                    if (cand.gender !== 'M') continue;
+                    if (cand.birthYear && person.birthYear) {
+                        const ageDiff = person.birthYear - cand.birthYear;
+                        if (ageDiff >= 18 && ageDiff <= 50) {
+                            score += 0.3;
+                            reasons.push(`Age gap: ${ageDiff} years`);
+                        } else if (ageDiff < 15 || ageDiff > 60) continue;
+                    }
+                    if (person.surname && cand.surname && person.surname.toLowerCase() === cand.surname.toLowerCase()) {
+                        score += 0.5;
+                        reasons.push('Same surname');
+                    }
+                } else if (relationType === 'mother') {
+                    if (cand.gender !== 'F') continue;
+                    if (cand.birthYear && person.birthYear) {
+                        const ageDiff = person.birthYear - cand.birthYear;
+                        if (ageDiff >= 16 && ageDiff <= 45) {
+                            score += 0.3;
+                            reasons.push(`Age gap: ${ageDiff} years`);
+                        } else if (ageDiff < 12 || ageDiff > 55) continue;
+                    }
+                }
+
+                if (score > 0) {
+                    candidates.push({
+                        id: candId,
+                        name: `${cand.givenName || ''} ${cand.surname || ''}`.trim() || candId,
+                        birthYear: cand.birthYear,
+                        score,
+                        reasons: reasons.join('; ')
+                    });
+                }
+            }
+
+            candidates.sort((a, b) => b.score - a.score);
+            return candidates.slice(0, 5);
+        }
+
+        // ============================================================================
+        // UI Functions
+        // ============================================================================
+        function showLoading(text) {
+            document.getElementById('loadingText').textContent = text;
+            document.getElementById('loadingOverlay').classList.add('active');
+        }
+
+        function hideLoading() {
+            document.getElementById('loadingOverlay').classList.remove('active');
+        }
+
+        function renderPersonList() {
+            const container = document.getElementById('personList');
+            const searchTerm = document.getElementById('searchInput').value.toLowerCase();
+
+            let filtered = Array.from(individuals.values());
+
+            // Apply search
+            if (searchTerm) {
+                filtered = filtered.filter(p => {
+                    const name = `${p.givenName} ${p.surname}`.toLowerCase();
+                    return name.includes(searchTerm);
+                });
+            }
+
+            // Apply filter
+            if (currentFilter === 'missing') {
+                filtered = filtered.filter(p => !p.father || !p.mother);
+            } else if (currentFilter === 'complete') {
+                filtered = filtered.filter(p => p.father && p.mother);
+            }
+
+            // Sort by birth year
+            filtered.sort((a, b) => (b.birthYear || 0) - (a.birthYear || 0));
+
+            container.innerHTML = filtered.slice(0, 200).map(p => {
+                const name = `${p.givenName || ''} ${p.surname || ''}`.trim() || p.id;
+                const dates = p.birthYear ? `b. ${p.birthYear}${p.deathYear ? ` - d. ${p.deathYear}` : ''}` : '';
+                const hasMissing = !p.father || !p.mother;
+
+                return `
+                    <div class="person-item ${p.id === selectedPersonId ? 'selected' : ''} ${hasMissing ? 'missing-ancestors' : ''}"
+                         onclick="selectPerson('${p.id}')">
+                        <div class="person-name">${escapeHtml(name)}</div>
+                        <div class="person-dates">${dates}</div>
+                        ${hasMissing ? `
+                            <div class="person-badges">
+                                ${!p.father ? '<span class="badge warning">Missing Father</span>' : ''}
+                                ${!p.mother ? '<span class="badge warning">Missing Mother</span>' : ''}
+                            </div>
+                        ` : ''}
+                    </div>
+                `;
+            }).join('');
+
+            // Update stats
+            const totalMissing = Array.from(individuals.values()).filter(p => !p.father || !p.mother).length;
+            document.getElementById('statTotal').textContent = individuals.size;
+            document.getElementById('statMissing').textContent = totalMissing;
+        }
+
+        function selectPerson(personId) {
+            selectedPersonId = personId;
+            renderPersonList();
+            renderFanChart(personId);
+            renderPedigree(personId);
+            renderDetails(personId);
+        }
+
+        function renderDetails(personId) {
+            const person = individuals.get(personId);
+            const pred = predictions.get(personId) || {};
+
+            if (!person) return;
+
+            const name = `${person.givenName || ''} ${person.surname || ''}`.trim() || personId;
+            document.getElementById('detailsName').textContent = name;
+
+            let dates = '';
+            if (person.birthYear) dates += `b. ${person.birthYear}`;
+            if (person.birthPlace) dates += ` in ${person.birthPlace}`;
+            if (person.deathYear) dates += ` — d. ${person.deathYear}`;
+            document.getElementById('detailsDates').textContent = dates;
+
+            let html = '';
+
+            // Basic info
+            html += `<div class="details-section">
+                <h3>Information</h3>
+                <div class="info-row">
+                    <span class="info-label">Gender</span>
+                    <span>${person.gender === 'M' ? 'Male' : person.gender === 'F' ? 'Female' : 'Unknown'}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Spouses</span>
+                    <span>${person.spouses.length}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Children</span>
+                    <span>${person.children.length}</span>
+                </div>
+                <div class="info-row">
+                    <span class="info-label">Siblings</span>
+                    <span>${person.siblings.length}</span>
+                </div>
+            </div>`;
+
+            // Predictions
+            if (!person.father || !person.mother) {
+                html += `<div class="details-section"><h3>Predictions</h3>`;
+
+                if (!person.father) {
+                    const confidence = pred.missingFather || 0.9;
+                    const candidates = findCandidates(personId, 'father');
+
+                    html += `<div class="prediction-card">
+                        <h4>⚠️ Missing Father</h4>
+                        <div>Confidence: ${(confidence * 100).toFixed(0)}%</div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
+                        </div>
+                        ${candidates.length > 0 ? `
+                            <div class="candidate-list">
+                                <strong>Possible matches:</strong>
+                                ${candidates.map(c => `
+                                    <div class="candidate-item" onclick="selectPerson('${c.id}')">
+                                        <div class="candidate-name">${escapeHtml(c.name)}</div>
+                                        <div class="candidate-info">${c.birthYear ? `b. ${c.birthYear}` : ''} ${c.reasons ? `— ${c.reasons}` : ''}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : '<p style="opacity: 0.6; margin-top: 10px;">No candidates found</p>'}
+                    </div>`;
+                }
+
+                if (!person.mother) {
+                    const confidence = pred.missingMother || 0.9;
+                    const candidates = findCandidates(personId, 'mother');
+
+                    html += `<div class="prediction-card">
+                        <h4>⚠️ Missing Mother</h4>
+                        <div>Confidence: ${(confidence * 100).toFixed(0)}%</div>
+                        <div class="confidence-bar">
+                            <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
+                        </div>
+                        ${candidates.length > 0 ? `
+                            <div class="candidate-list">
+                                <strong>Possible matches:</strong>
+                                ${candidates.map(c => `
+                                    <div class="candidate-item" onclick="selectPerson('${c.id}')">
+                                        <div class="candidate-name">${escapeHtml(c.name)}</div>
+                                        <div class="candidate-info">${c.birthYear ? `b. ${c.birthYear}` : ''} ${c.reasons ? `— ${c.reasons}` : ''}</div>
+                                    </div>
+                                `).join('')}
+                            </div>
+                        ` : '<p style="opacity: 0.6; margin-top: 10px;">No candidates found</p>'}
+                    </div>`;
+                }
+
+                html += `</div>`;
+            }
+
+            // Family
+            html += `<div class="details-section"><h3>Family</h3>`;
+
+            if (person.father) {
+                const father = individuals.get(person.father);
+                const fatherName = father ? `${father.givenName || ''} ${father.surname || ''}`.trim() : person.father;
+                html += `<div class="info-row">
+                    <span class="info-label">Father</span>
+                    <span style="cursor: pointer; color: #4ecdc4;" onclick="selectPerson('${person.father}')">${escapeHtml(fatherName)}</span>
+                </div>`;
+            }
+
+            if (person.mother) {
+                const mother = individuals.get(person.mother);
+                const motherName = mother ? `${mother.givenName || ''} ${mother.surname || ''}`.trim() : person.mother;
+                html += `<div class="info-row">
+                    <span class="info-label">Mother</span>
+                    <span style="cursor: pointer; color: #4ecdc4;" onclick="selectPerson('${person.mother}')">${escapeHtml(motherName)}</span>
+                </div>`;
+            }
+
+            html += `</div>`;
+
+            document.getElementById('detailsContent').innerHTML = html;
+        }
+
+        // ============================================================================
+        // Fan Chart
+        // ============================================================================
+        function renderFanChart(rootId) {
+            const svg = d3.select('#fanchart');
+            svg.selectAll('*').remove();
+
+            const width = 700;
+            const height = 700;
+            const centerX = width / 2;
+            const centerY = height / 2;
+            const innerRadius = 50;
+            const radiusStep = 55;
+            const maxGenerations = 5;
+
+            svg.attr('width', width).attr('height', height);
+
+            const g = svg.append('g')
+                .attr('transform', `translate(${centerX}, ${centerY})`);
+
+            // Build ancestor tree
+            const nodes = [];
+            const queue = [[rootId, 0, 0]];
+            const visited = new Set();
+
+            while (queue.length > 0) {
+                const [currentId, gen, pos] = queue.shift();
+                if (visited.has(currentId) || gen > maxGenerations) continue;
+                visited.add(currentId);
+
+                const person = individuals.get(currentId);
+                const isMissing = !person;
+
+                nodes.push({
+                    id: currentId,
+                    name: person ? `${person.givenName || ''} ${person.surname || ''}`.trim() || currentId : 'Unknown',
+                    birthYear: person?.birthYear,
+                    gender: person?.gender,
+                    generation: gen,
+                    position: pos,
+                    isMissing,
+                    candidates: []
+                });
+
+                if (person && gen < maxGenerations) {
+                    const nextGen = gen + 1;
+                    const fatherPos = pos * 2;
+                    const motherPos = pos * 2 + 1;
+
+                    if (person.father) {
+                        queue.push([person.father, nextGen, fatherPos]);
+                    } else {
+                        const missingId = `missing_father_${currentId}`;
+                        nodes.push({
+                            id: missingId,
+                            name: 'Unknown Father',
+                            birthYear: person.birthYear ? person.birthYear - 30 : null,
+                            gender: 'M',
+                            generation: nextGen,
+                            position: fatherPos,
+                            isMissing: true,
+                            candidates: findCandidates(currentId, 'father')
+                        });
+                    }
+
+                    if (person.mother) {
+                        queue.push([person.mother, nextGen, motherPos]);
+                    } else {
+                        const missingId = `missing_mother_${currentId}`;
+                        nodes.push({
+                            id: missingId,
+                            name: 'Unknown Mother',
+                            birthYear: person.birthYear ? person.birthYear - 28 : null,
+                            gender: 'F',
+                            generation: nextGen,
+                            position: motherPos,
+                            isMissing: true,
+                            candidates: findCandidates(currentId, 'mother')
+                        });
+                    }
+                }
+            }
+
+            // Group by generation
+            const generations = {};
+            nodes.forEach(n => {
+                if (!generations[n.generation]) generations[n.generation] = [];
+                generations[n.generation].push(n);
+            });
+
+            // Draw arcs
+            Object.keys(generations).forEach(gen => {
+                const genNum = parseInt(gen);
+                const genNodes = generations[gen];
+                const numSlots = Math.pow(2, genNum);
+                const arcAngle = Math.PI / numSlots;
+
+                const inner = innerRadius + genNum * radiusStep;
+                const outer = inner + radiusStep - 4;
+
+                genNodes.forEach(node => {
+                    const startAngle = -Math.PI/2 + node.position * arcAngle * 2;
+                    const endAngle = startAngle + arcAngle * 2 - 0.02;
+
+                    const arc = d3.arc()
+                        .innerRadius(inner)
+                        .outerRadius(outer)
+                        .startAngle(startAngle)
+                        .endAngle(endAngle)
+                        .padAngle(0.01);
+
+                    let fillColor;
+                    if (node.isMissing) {
+                        fillColor = node.gender === 'M' ? '#8b4a4a' : '#8b4a6b';
+                    } else {
+                        fillColor = node.gender === 'M' ? '#4a90d9' : node.gender === 'F' ? '#d94a7b' : '#6b7b8b';
+                    }
+
+                    const arcGroup = g.append('g')
+                        .attr('class', 'arc' + (node.isMissing ? ' missing-arc' : ''))
+                        .style('cursor', 'pointer');
+
+                    arcGroup.append('path')
+                        .attr('d', arc)
+                        .attr('fill', fillColor)
+                        .attr('stroke', node.isMissing ? '#ff6b6b' : 'rgba(255,255,255,0.3)')
+                        .attr('stroke-width', node.isMissing ? 2 : 1)
+                        .attr('stroke-dasharray', node.isMissing ? '5,3' : 'none');
+
+                    // Label
+                    if (genNum <= 3) {
+                        const midAngle = (startAngle + endAngle) / 2;
+                        const labelRadius = (inner + outer) / 2;
+                        const labelX = Math.cos(midAngle) * labelRadius;
+                        const labelY = Math.sin(midAngle) * labelRadius;
+
+                        const displayName = node.name.length > 12 ? node.name.substring(0, 10) + '...' : node.name;
+
+                        arcGroup.append('text')
+                            .attr('class', 'arc-label')
+                            .attr('x', labelX)
+                            .attr('y', labelY)
+                            .attr('text-anchor', 'middle')
+                            .attr('dominant-baseline', 'middle')
+                            .attr('transform', `rotate(${midAngle * 180 / Math.PI + 90}, ${labelX}, ${labelY})`)
+                            .text(displayName);
+                    }
+
+                    // Interactions
+                    arcGroup.on('click', () => {
+                        if (!node.isMissing && individuals.has(node.id)) {
+                            selectPerson(node.id);
+                        }
+                    });
+
+                    arcGroup.on('mouseover', (event) => {
+                        let html = `<strong>${escapeHtml(node.name)}</strong>`;
+                        if (node.birthYear) html += `<br>b. ${node.birthYear}`;
+                        if (node.isMissing) {
+                            html += `<br><span style="color: #ff6b6b;">⚠️ Missing Ancestor</span>`;
+                            if (node.candidates.length > 0) {
+                                html += `<br><br><strong>Possible matches:</strong>`;
+                                node.candidates.forEach(c => {
+                                    html += `<br>• ${escapeHtml(c.name)}${c.birthYear ? ` (b. ${c.birthYear})` : ''}`;
+                                });
+                            }
+                        }
+
+                        const tooltip = document.getElementById('tooltip');
+                        tooltip.innerHTML = html;
+                        tooltip.style.display = 'block';
+                        tooltip.style.left = (event.pageX + 15) + 'px';
+                        tooltip.style.top = (event.pageY - 10) + 'px';
+                    });
+
+                    arcGroup.on('mousemove', (event) => {
+                        const tooltip = document.getElementById('tooltip');
+                        tooltip.style.left = (event.pageX + 15) + 'px';
+                        tooltip.style.top = (event.pageY - 10) + 'px';
+                    });
+
+                    arcGroup.on('mouseout', () => {
+                        document.getElementById('tooltip').style.display = 'none';
+                    });
+                });
+            });
+
+            // Center circle
+            const rootPerson = individuals.get(rootId);
+            if (rootPerson) {
+                g.append('circle')
+                    .attr('r', innerRadius - 4)
+                    .attr('fill', rootPerson.gender === 'M' ? '#4a90d9' : '#d94a7b')
+                    .attr('stroke', '#fff')
+                    .attr('stroke-width', 2);
+
+                const rootName = `${rootPerson.givenName || ''} ${rootPerson.surname || ''}`.trim();
+                g.append('text')
+                    .attr('text-anchor', 'middle')
+                    .attr('dominant-baseline', 'middle')
+                    .attr('fill', '#fff')
+                    .attr('font-size', '11px')
+                    .attr('font-weight', 'bold')
+                    .text(rootName.length > 15 ? rootName.substring(0, 12) + '...' : rootName);
+            }
+        }
+
+        // ============================================================================
+        // Pedigree View
+        // ============================================================================
+        function renderPedigree(rootId) {
+            const container = document.getElementById('pedigreeContainer');
+            const maxGen = 4;
+
+            let html = '<div class="pedigree-tree">';
+
+            // Build generations
+            for (let gen = 0; gen <= maxGen; gen++) {
+                const numSlots = Math.pow(2, gen);
+                html += `<div class="pedigree-generation" style="min-height: ${numSlots * 80}px;">`;
+
+                const ancestors = getAncestorsAtGeneration(rootId, gen);
+
+                for (let pos = 0; pos < numSlots; pos++) {
+                    const ancestor = ancestors[pos];
+
+                    if (ancestor) {
+                        const person = individuals.get(ancestor.id);
+                        const isMissing = ancestor.isMissing;
+
+                        if (person || isMissing) {
+                            const name = person ? `${person.givenName || ''} ${person.surname || ''}`.trim() : 'Unknown';
+                            const gender = person?.gender || ancestor.gender;
+                            const dates = person?.birthYear ? `b. ${person.birthYear}${person.deathYear ? ` - d. ${person.deathYear}` : ''}` : '';
+
+                            html += `
+                                <div class="pedigree-person ${gender === 'M' ? 'male' : 'female'} ${isMissing ? 'missing' : ''}"
+                                     onclick="${!isMissing && person ? `selectPerson('${ancestor.id}')` : ''}">
+                                    <div class="name">${escapeHtml(name)}</div>
+                                    <div class="dates">${dates}</div>
+                                    ${isMissing ? '<div class="prediction-badge">⚠️ Predicted Missing</div>' : ''}
+                                </div>
+                            `;
+                        } else {
+                            html += `<div class="pedigree-person" style="opacity: 0.3; border: 1px dashed rgba(255,255,255,0.2);">
+                                <div class="name">—</div>
+                            </div>`;
+                        }
+                    } else {
+                        html += `<div class="pedigree-person" style="visibility: hidden;">
+                            <div class="name">—</div>
+                        </div>`;
+                    }
+                }
+
+                html += '</div>';
+            }
+
+            html += '</div>';
+            container.innerHTML = html;
+        }
+
+        function getAncestorsAtGeneration(rootId, targetGen) {
+            const result = [];
+            const numSlots = Math.pow(2, targetGen);
+
+            function traverse(personId, gen, pos, expectedGender) {
+                if (gen === targetGen) {
+                    result[pos] = {
+                        id: personId,
+                        isMissing: !personId || !individuals.has(personId),
+                        gender: expectedGender
+                    };
+                    return;
+                }
+
+                const person = individuals.get(personId);
+                if (!person) {
+                    // Fill remaining slots with missing
+                    const slotsPerAncestor = Math.pow(2, targetGen - gen);
+                    for (let i = 0; i < slotsPerAncestor; i++) {
+                        const subPos = pos * slotsPerAncestor + i;
+                        result[subPos] = { id: null, isMissing: true, gender: i % 2 === 0 ? 'M' : 'F' };
+                    }
+                    return;
+                }
+
+                traverse(person.father, gen + 1, pos * 2, 'M');
+                traverse(person.mother, gen + 1, pos * 2 + 1, 'F');
+            }
+
+            traverse(rootId, 0, 0, null);
+            return result;
+        }
+
+        // ============================================================================
+        // Event Handlers
+        // ============================================================================
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+        }
+
+        function resetApp() {
+            individuals.clear();
+            families.clear();
+            predictions.clear();
+            selectedPersonId = null;
+
+            document.getElementById('uploadSection').style.display = 'flex';
+            document.getElementById('appContainer').classList.remove('active');
+            document.getElementById('headerActions').style.display = 'none';
+        }
+
+        // File upload handling
+        const uploadBox = document.getElementById('uploadBox');
+        const fileInput = document.getElementById('fileInput');
+
+        uploadBox.addEventListener('click', () => fileInput.click());
+
+        uploadBox.addEventListener('dragover', (e) => {
+            e.preventDefault();
+            uploadBox.classList.add('dragover');
+        });
+
+        uploadBox.addEventListener('dragleave', () => {
+            uploadBox.classList.remove('dragover');
+        });
+
+        uploadBox.addEventListener('drop', (e) => {
+            e.preventDefault();
+            uploadBox.classList.remove('dragover');
+            const file = e.dataTransfer.files[0];
+            if (file) processFile(file);
+        });
+
+        fileInput.addEventListener('change', (e) => {
+            const file = e.target.files[0];
+            if (file) processFile(file);
+        });
+
+        async function processFile(file) {
+            showLoading('Reading GEDCOM file...');
+
+            try {
+                const text = await file.text();
+
+                showLoading('Parsing GEDCOM data...');
+                await new Promise(r => setTimeout(r, 100));
+
+                const result = parseGedcom(text);
+                individuals = result.individuals;
+                families = result.families;
+
+                showLoading('Generating predictions...');
+                await new Promise(r => setTimeout(r, 100));
+
+                generatePredictions();
+
+                // Show app
+                document.getElementById('uploadSection').style.display = 'none';
+                document.getElementById('appContainer').classList.add('active');
+                document.getElementById('headerActions').style.display = 'flex';
+
+                renderPersonList();
+
+                // Select first person with missing ancestors
+                let firstPerson = null;
+                for (const [id, person] of individuals) {
+                    if (!person.father || !person.mother) {
+                        if (person.birthYear && person.birthYear > 1900) {
+                            firstPerson = id;
+                            break;
+                        }
+                    }
+                }
+                if (!firstPerson) firstPerson = individuals.keys().next().value;
+
+                if (firstPerson) selectPerson(firstPerson);
+
+                hideLoading();
+
+            } catch (error) {
+                console.error(error);
+                alert('Error processing file: ' + error.message);
+                hideLoading();
+            }
+        }
+
+        // Search
+        document.getElementById('searchInput').addEventListener('input', renderPersonList);
+
+        // Filter tabs
+        document.querySelectorAll('.filter-tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
+                tab.classList.add('active');
+                currentFilter = tab.dataset.filter;
+                renderPersonList();
+            });
+        });
+
+        // View tabs
+        document.querySelectorAll('.tab').forEach(tab => {
+            tab.addEventListener('click', () => {
+                document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+                document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+                tab.classList.add('active');
+                document.getElementById(tab.dataset.tab + 'Tab').classList.add('active');
+            });
+        });
+    </script>
+</body>
+</html>
