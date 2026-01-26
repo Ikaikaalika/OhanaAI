@@ -49,9 +49,8 @@ class GedcomDataset:
 
     def _load_data(self):
         """Load all training batch files."""
-        files = sorted(self.data_dir.glob('training_batch_*.json'))
+        files = sorted(self.data_dir.glob('training_*.json'))
         if not files:
-            # Also check for exported training data in different format
             files = sorted(self.data_dir.glob('*.json'))
 
         print(f"Found {len(files)} training data files")
@@ -63,9 +62,16 @@ class GedcomDataset:
 
                 # Handle different data formats
                 if 'data' in data:
-                    # New format with training examples
+                    # New format: {"metadata": {...}, "data": [{nodeFeatures, ...}]}
                     for item in data['data']:
-                        example = self._process_example(item)
+                        if 'nodeFeatures' in item:
+                            # Direct format with nodeFeatures
+                            example = self._process_direct_example(item)
+                        elif 'graphData' in item:
+                            # Old format with graphData
+                            example = self._process_example(item)
+                        else:
+                            continue
                         if example is not None:
                             self.examples.append(example)
                 elif 'nodeFeatures' in data:
@@ -76,6 +82,8 @@ class GedcomDataset:
 
             except Exception as e:
                 print(f"Error loading {file_path}: {e}")
+                import traceback
+                traceback.print_exc()
 
         print(f"Loaded {len(self.examples)} training examples")
 
@@ -644,19 +652,25 @@ def main():
         sys.exit(1)
 
     # Split into train/val
-    indices = list(range(len(full_dataset)))
-    train_indices, val_indices = train_test_split(
-        indices, test_size=args.val_split, random_state=args.seed
-    )
+    # If we only have one example, use it for both train and val
+    if len(full_dataset) == 1:
+        print("Single file mode: using same data for train and validation")
+        train_dataset = full_dataset
+        val_dataset = full_dataset
+    else:
+        indices = list(range(len(full_dataset)))
+        train_indices, val_indices = train_test_split(
+            indices, test_size=args.val_split, random_state=args.seed
+        )
 
-    # Create train and val datasets
-    train_dataset = GedcomDataset.__new__(GedcomDataset)
-    train_dataset.config = model_config
-    train_dataset.examples = [full_dataset[i] for i in train_indices]
+        # Create train and val datasets
+        train_dataset = GedcomDataset.__new__(GedcomDataset)
+        train_dataset.config = model_config
+        train_dataset.examples = [full_dataset[i] for i in train_indices]
 
-    val_dataset = GedcomDataset.__new__(GedcomDataset)
-    val_dataset.config = model_config
-    val_dataset.examples = [full_dataset[i] for i in val_indices]
+        val_dataset = GedcomDataset.__new__(GedcomDataset)
+        val_dataset.config = model_config
+        val_dataset.examples = [full_dataset[i] for i in val_indices]
 
     # Create model
     print("\nInitializing model...")

@@ -1,0 +1,13 @@
+{
+  "input_dim": 176,
+  "hidden_dim": 128,
+  "num_outputs": 5,
+  "output_labels": [
+    "missing_father",
+    "missing_mother",
+    "missing_spouse",
+    "missing_children",
+    "missing_siblings"
+  ],
+  "saved_at": "2026-01-25T23:25:19.856544"
+}
