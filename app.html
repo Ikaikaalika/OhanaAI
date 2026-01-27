@@ -5,13 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>OhanaAI - Missing Ancestor Predictor</title>
     <script src="https://d3js.org/d3.v7.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/onnxruntime-web@1.17.0/dist/ort.min.js"></script>
     <style>
-        * {
-            margin: 0;
-            padding: 0;
-            box-sizing: border-box;
-        }
+        * { margin: 0; padding: 0; box-sizing: border-box; }
 
         body {
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
@@ -20,7 +15,6 @@
             color: #fff;
         }
 
-        /* Header */
         .header {
             padding: 20px 30px;
             background: rgba(0,0,0,0.3);
@@ -30,12 +24,7 @@
             align-items: center;
         }
 
-        .logo {
-            display: flex;
-            align-items: center;
-            gap: 12px;
-        }
-
+        .logo { display: flex; align-items: center; gap: 12px; }
         .logo h1 {
             font-size: 1.5em;
             background: linear-gradient(135deg, #4ecdc4, #44a08d);
@@ -43,12 +32,6 @@
             -webkit-text-fill-color: transparent;
         }
 
-        .header-actions {
-            display: flex;
-            gap: 15px;
-        }
-
-        /* Upload Section */
         .upload-section {
             display: flex;
             flex-direction: column;
@@ -69,30 +52,14 @@
             max-width: 600px;
         }
 
-        .upload-box:hover {
+        .upload-box:hover, .upload-box.dragover {
             border-color: #4ecdc4;
             background: rgba(78, 205, 196, 0.1);
         }
 
-        .upload-box.dragover {
-            border-color: #4ecdc4;
-            background: rgba(78, 205, 196, 0.2);
-            transform: scale(1.02);
-        }
-
-        .upload-icon {
-            font-size: 4em;
-            margin-bottom: 20px;
-        }
-
-        .upload-box h2 {
-            margin-bottom: 10px;
-        }
-
-        .upload-box p {
-            opacity: 0.7;
-            margin-bottom: 20px;
-        }
+        .upload-icon { margin-bottom: 20px; color: rgba(255,255,255,0.7); }
+        .upload-box h2 { margin-bottom: 10px; }
+        .upload-box p { opacity: 0.7; margin-bottom: 20px; }
 
         .btn {
             background: linear-gradient(135deg, #4ecdc4, #44a08d);
@@ -115,22 +82,13 @@
             border: 1px solid rgba(255,255,255,0.2);
         }
 
-        .btn-secondary:hover {
-            background: rgba(255,255,255,0.2);
-            box-shadow: none;
-        }
-
-        /* Main App Layout */
         .app-container {
             display: none;
             height: calc(100vh - 70px);
         }
 
-        .app-container.active {
-            display: flex;
-        }
+        .app-container.active { display: flex; }
 
-        /* Sidebar */
         .sidebar {
             width: 350px;
             background: rgba(0,0,0,0.3);
@@ -155,14 +113,8 @@
             font-size: 14px;
         }
 
-        .search-input::placeholder {
-            color: rgba(255,255,255,0.5);
-        }
-
-        .search-input:focus {
-            outline: none;
-            border-color: #4ecdc4;
-        }
+        .search-input::placeholder { color: rgba(255,255,255,0.5); }
+        .search-input:focus { outline: none; border-color: #4ecdc4; }
 
         .stats-bar {
             padding: 12px 15px;
@@ -173,364 +125,9 @@
             gap: 15px;
         }
 
-        .stat {
-            display: flex;
-            align-items: center;
-            gap: 5px;
-        }
+        .stat { display: flex; align-items: center; gap: 5px; }
+        .stat-value { font-weight: bold; color: #4ecdc4; }
 
-        .stat-value {
-            font-weight: bold;
-            color: #4ecdc4;
-        }
-
-        .person-list {
-            flex: 1;
-            overflow-y: auto;
-            padding: 10px;
-        }
-
-        .person-item {
-            padding: 12px 15px;
-            background: rgba(255,255,255,0.03);
-            border-radius: 8px;
-            margin-bottom: 8px;
-            cursor: pointer;
-            transition: all 0.2s;
-            border-left: 3px solid transparent;
-        }
-
-        .person-item:hover {
-            background: rgba(255,255,255,0.08);
-        }
-
-        .person-item.selected {
-            background: rgba(78, 205, 196, 0.15);
-            border-left-color: #4ecdc4;
-        }
-
-        .person-item.missing-ancestors {
-            border-left-color: #ff6b6b;
-        }
-
-        .person-name {
-            font-weight: 500;
-            margin-bottom: 4px;
-        }
-
-        .person-dates {
-            font-size: 12px;
-            opacity: 0.6;
-        }
-
-        .person-badges {
-            display: flex;
-            gap: 5px;
-            margin-top: 6px;
-        }
-
-        .badge {
-            font-size: 10px;
-            padding: 2px 6px;
-            border-radius: 4px;
-            background: rgba(255,255,255,0.1);
-        }
-
-        .badge.warning {
-            background: rgba(255, 107, 107, 0.3);
-            color: #ff6b6b;
-        }
-
-        /* Main Content */
-        .main-content {
-            flex: 1;
-            display: flex;
-            flex-direction: column;
-            overflow: hidden;
-        }
-
-        .tabs {
-            display: flex;
-            background: rgba(0,0,0,0.2);
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .tab {
-            padding: 15px 25px;
-            cursor: pointer;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-        }
-
-        .tab:hover {
-            background: rgba(255,255,255,0.05);
-        }
-
-        .tab.active {
-            border-bottom-color: #4ecdc4;
-            background: rgba(78, 205, 196, 0.1);
-        }
-
-        .tab-content {
-            flex: 1;
-            overflow: hidden;
-            display: none;
-        }
-
-        .tab-content.active {
-            display: flex;
-        }
-
-        /* Fan Chart */
-        .fanchart-container {
-            flex: 1;
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            overflow: auto;
-            padding: 20px;
-        }
-
-        #fanchart {
-            background: rgba(255,255,255,0.02);
-            border-radius: 50%;
-        }
-
-        /* Pedigree View */
-        .pedigree-container {
-            flex: 1;
-            overflow: auto;
-            padding: 30px;
-        }
-
-        .pedigree-tree {
-            display: flex;
-            gap: 30px;
-            min-width: max-content;
-        }
-
-        .pedigree-generation {
-            display: flex;
-            flex-direction: column;
-            justify-content: space-around;
-            gap: 10px;
-        }
-
-        .pedigree-person {
-            background: rgba(255,255,255,0.05);
-            border: 1px solid rgba(255,255,255,0.1);
-            border-radius: 8px;
-            padding: 12px 16px;
-            min-width: 180px;
-            cursor: pointer;
-            transition: all 0.2s;
-        }
-
-        .pedigree-person:hover {
-            background: rgba(255,255,255,0.1);
-            border-color: #4ecdc4;
-        }
-
-        .pedigree-person.male {
-            border-left: 3px solid #4a90d9;
-        }
-
-        .pedigree-person.female {
-            border-left: 3px solid #d94a7b;
-        }
-
-        .pedigree-person.missing {
-            border: 2px dashed #ff6b6b;
-            background: rgba(255, 107, 107, 0.1);
-        }
-
-        .pedigree-person .name {
-            font-weight: 500;
-            margin-bottom: 4px;
-        }
-
-        .pedigree-person .dates {
-            font-size: 12px;
-            opacity: 0.6;
-        }
-
-        .pedigree-person .prediction-badge {
-            margin-top: 8px;
-            font-size: 11px;
-            color: #ff6b6b;
-        }
-
-        /* Details Panel */
-        .details-panel {
-            width: 350px;
-            background: rgba(0,0,0,0.3);
-            border-left: 1px solid rgba(255,255,255,0.1);
-            overflow-y: auto;
-            padding: 20px;
-        }
-
-        .details-header {
-            margin-bottom: 20px;
-            padding-bottom: 15px;
-            border-bottom: 1px solid rgba(255,255,255,0.1);
-        }
-
-        .details-name {
-            font-size: 1.3em;
-            font-weight: 600;
-            margin-bottom: 8px;
-        }
-
-        .details-section {
-            margin-bottom: 20px;
-        }
-
-        .details-section h3 {
-            font-size: 12px;
-            text-transform: uppercase;
-            letter-spacing: 1px;
-            opacity: 0.6;
-            margin-bottom: 10px;
-        }
-
-        .info-row {
-            display: flex;
-            justify-content: space-between;
-            padding: 8px 0;
-            border-bottom: 1px solid rgba(255,255,255,0.05);
-        }
-
-        .info-label {
-            opacity: 0.7;
-        }
-
-        .prediction-card {
-            background: rgba(255, 107, 107, 0.15);
-            border: 1px solid rgba(255, 107, 107, 0.3);
-            border-radius: 8px;
-            padding: 15px;
-            margin-bottom: 10px;
-        }
-
-        .prediction-card h4 {
-            color: #ff6b6b;
-            margin-bottom: 8px;
-        }
-
-        .confidence-bar {
-            height: 6px;
-            background: rgba(255,255,255,0.1);
-            border-radius: 3px;
-            margin: 8px 0;
-            overflow: hidden;
-        }
-
-        .confidence-fill {
-            height: 100%;
-            background: linear-gradient(90deg, #ff6b6b, #ff9f43);
-            border-radius: 3px;
-        }
-
-        .candidate-list {
-            margin-top: 12px;
-        }
-
-        .candidate-item {
-            background: rgba(255,255,255,0.05);
-            padding: 10px;
-            border-radius: 6px;
-            margin-bottom: 6px;
-            cursor: pointer;
-            transition: background 0.2s;
-        }
-
-        .candidate-item:hover {
-            background: rgba(78, 205, 196, 0.2);
-        }
-
-        .candidate-name {
-            font-weight: 500;
-        }
-
-        .candidate-info {
-            font-size: 12px;
-            opacity: 0.7;
-        }
-
-        /* Tooltip */
-        .tooltip {
-            position: fixed;
-            background: rgba(20, 20, 40, 0.95);
-            border: 1px solid rgba(255,255,255,0.2);
-            border-radius: 8px;
-            padding: 12px 16px;
-            font-size: 13px;
-            pointer-events: none;
-            z-index: 1000;
-            max-width: 280px;
-            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
-            display: none;
-        }
-
-        /* Loading */
-        .loading-overlay {
-            position: fixed;
-            top: 0;
-            left: 0;
-            right: 0;
-            bottom: 0;
-            background: rgba(0,0,0,0.8);
-            display: none;
-            justify-content: center;
-            align-items: center;
-            z-index: 2000;
-            flex-direction: column;
-            gap: 20px;
-        }
-
-        .loading-overlay.active {
-            display: flex;
-        }
-
-        .spinner {
-            width: 50px;
-            height: 50px;
-            border: 3px solid rgba(255,255,255,0.1);
-            border-top-color: #4ecdc4;
-            border-radius: 50%;
-            animation: spin 1s linear infinite;
-        }
-
-        @keyframes spin {
-            to { transform: rotate(360deg); }
-        }
-
-        /* Arc styles */
-        .arc {
-            cursor: pointer;
-            transition: opacity 0.2s;
-        }
-
-        .arc:hover {
-            opacity: 0.8;
-        }
-
-        .arc-label {
-            font-size: 10px;
-            fill: #fff;
-            pointer-events: none;
-        }
-
-        .missing-arc {
-            animation: pulse 2s infinite;
-        }
-
-        @keyframes pulse {
-            0%, 100% { opacity: 1; }
-            50% { opacity: 0.6; }
-        }
-
-        /* Filter tabs */
         .filter-tabs {
             display: flex;
             padding: 10px 15px;
@@ -547,21 +144,358 @@
             transition: all 0.2s;
         }
 
-        .filter-tab:hover {
+        .filter-tab:hover { background: rgba(255,255,255,0.1); }
+        .filter-tab.active { background: #4ecdc4; color: #1a1a2e; }
+
+        .person-list { flex: 1; overflow-y: auto; padding: 10px; }
+
+        .person-item {
+            padding: 12px 15px;
+            background: rgba(255,255,255,0.03);
+            border-radius: 8px;
+            margin-bottom: 8px;
+            cursor: pointer;
+            transition: all 0.2s;
+            border-left: 3px solid transparent;
+        }
+
+        .person-item:hover { background: rgba(255,255,255,0.08); }
+        .person-item.selected { background: rgba(78, 205, 196, 0.15); border-left-color: #4ecdc4; }
+        .person-item.missing-ancestors { border-left-color: #ff6b6b; }
+
+        .person-name { font-weight: 500; margin-bottom: 4px; }
+        .person-dates { font-size: 12px; opacity: 0.6; }
+        .person-badges { display: flex; gap: 5px; margin-top: 6px; }
+
+        .badge {
+            font-size: 10px;
+            padding: 2px 6px;
+            border-radius: 4px;
             background: rgba(255,255,255,0.1);
         }
 
-        .filter-tab.active {
+        .badge.warning { background: rgba(255, 107, 107, 0.3); color: #ff6b6b; }
+
+        .main-content { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+        .tabs {
+            display: flex;
+            background: rgba(0,0,0,0.2);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .tab {
+            padding: 15px 25px;
+            cursor: pointer;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+        }
+
+        .tab:hover { background: rgba(255,255,255,0.05); }
+        .tab.active { border-bottom-color: #4ecdc4; background: rgba(78, 205, 196, 0.1); }
+
+        .tab-content { flex: 1; overflow: hidden; display: none; }
+        .tab-content.active { display: flex; }
+
+        .fanchart-container {
+            flex: 1;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            overflow: auto;
+            padding: 20px;
+        }
+
+        #fanchart { background: rgba(255,255,255,0.02); border-radius: 50%; }
+
+        .details-panel {
+            width: 380px;
+            background: rgba(0,0,0,0.3);
+            border-left: 1px solid rgba(255,255,255,0.1);
+            overflow-y: auto;
+            padding: 20px;
+        }
+
+        .details-header {
+            margin-bottom: 20px;
+            padding-bottom: 15px;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .details-name { font-size: 1.3em; font-weight: 600; margin-bottom: 8px; }
+        .details-section { margin-bottom: 20px; }
+
+        .details-section h3 {
+            font-size: 12px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            opacity: 0.6;
+            margin-bottom: 10px;
+        }
+
+        .info-row {
+            display: flex;
+            justify-content: space-between;
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.05);
+        }
+
+        .info-label { opacity: 0.7; }
+
+        .prediction-card {
+            background: linear-gradient(135deg, rgba(255, 107, 107, 0.15), rgba(255, 159, 67, 0.1));
+            border: 1px solid rgba(255, 107, 107, 0.3);
+            border-radius: 12px;
+            padding: 18px;
+            margin-bottom: 15px;
+        }
+
+        .prediction-card h4 {
+            color: #ff9f43;
+            margin-bottom: 12px;
+            font-size: 1.1em;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .prediction-card h4 .icon {
+            display: inline-flex;
+            align-items: center;
+            vertical-align: middle;
+        }
+        .prediction-card h4 .icon svg {
+            stroke: #ff9f43;
+        }
+
+        .predicted-attribute {
+            background: rgba(255,255,255,0.05);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+        }
+
+        .predicted-attribute .label {
+            font-size: 11px;
+            text-transform: uppercase;
+            opacity: 0.6;
+            margin-bottom: 4px;
+        }
+
+        .predicted-attribute .value {
+            font-size: 1.05em;
+            font-weight: 500;
+        }
+
+        .predicted-attribute .confidence {
+            font-size: 11px;
+            opacity: 0.6;
+            margin-top: 3px;
+        }
+
+        .predicted-attribute .range {
+            font-size: 12px;
+            color: #4ecdc4;
+        }
+
+        .name-suggestions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 6px;
+            margin-top: 5px;
+        }
+
+        .name-chip {
+            background: rgba(78, 205, 196, 0.2);
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 12px;
+        }
+
+        .reasoning-list {
+            margin-top: 12px;
+            padding-top: 12px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .reasoning-item {
+            font-size: 12px;
+            opacity: 0.7;
+            padding: 4px 0;
+            padding-left: 15px;
+            position: relative;
+        }
+
+        .reasoning-item::before {
+            content: "";
+            position: absolute;
+            left: 0;
+            top: 8px;
+            width: 4px;
+            height: 4px;
             background: #4ecdc4;
-            color: #1a1a2e;
+            border-radius: 50%;
+        }
+
+        .alternate-values {
+            font-size: 12px;
+            color: #4ecdc4;
+            margin-top: 4px;
+            font-style: italic;
+        }
+
+        .search-tip {
+            font-size: 11px;
+            color: #ff9f43;
+            margin-top: 4px;
+            opacity: 0.9;
+            padding-left: 12px;
+            border-left: 2px solid rgba(255, 159, 67, 0.3);
+        }
+
+        .search-suggestions, .records-to-search {
+            margin-top: 15px;
+            padding-top: 15px;
+            border-top: 1px solid rgba(255,255,255,0.1);
+        }
+
+        .section-header {
+            font-size: 12px;
+            font-weight: 600;
+            margin-bottom: 10px;
+            color: #4ecdc4;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .section-header::before {
+            content: "";
+            width: 3px;
+            height: 14px;
+            background: linear-gradient(135deg, #4ecdc4, #44a08d);
+            border-radius: 2px;
+        }
+
+        .search-suggestion-item {
+            background: rgba(78, 205, 196, 0.1);
+            border-radius: 8px;
+            padding: 10px 12px;
+            margin-bottom: 8px;
+            border-left: 3px solid #4ecdc4;
+        }
+
+        .suggestion-type {
+            font-weight: 600;
+            font-size: 12px;
+            color: #4ecdc4;
+            margin-bottom: 4px;
+        }
+
+        .suggestion-desc {
+            font-size: 13px;
+            margin-bottom: 4px;
+        }
+
+        .suggestion-tip {
+            font-size: 11px;
+            opacity: 0.8;
+            color: #ff9f43;
+            padding-left: 10px;
+            border-left: 2px solid rgba(255, 159, 67, 0.3);
+            margin-top: 6px;
+        }
+
+        .record-item {
+            background: rgba(255,255,255,0.05);
+            border-radius: 6px;
+            padding: 8px 10px;
+            margin-bottom: 6px;
+        }
+
+        .record-type {
+            font-weight: 600;
+            font-size: 12px;
+            color: #fff;
+        }
+
+        .record-years {
+            font-size: 11px;
+            opacity: 0.7;
+        }
+
+        .record-sources {
+            font-size: 11px;
+            color: #4ecdc4;
+            margin-top: 2px;
+        }
+
+        .tooltip {
+            position: fixed;
+            background: rgba(20, 20, 40, 0.95);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 13px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 320px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+            display: none;
+        }
+
+        .loading-overlay {
+            position: fixed;
+            top: 0; left: 0; right: 0; bottom: 0;
+            background: rgba(0,0,0,0.8);
+            display: none;
+            justify-content: center;
+            align-items: center;
+            z-index: 2000;
+            flex-direction: column;
+            gap: 20px;
+        }
+
+        .loading-overlay.active { display: flex; }
+
+        .spinner {
+            width: 50px;
+            height: 50px;
+            border: 3px solid rgba(255,255,255,0.1);
+            border-top-color: #4ecdc4;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .arc { cursor: pointer; transition: opacity 0.2s; }
+        .arc:hover { opacity: 0.8; }
+        .arc-label { font-size: 10px; fill: #fff; pointer-events: none; }
+        .missing-arc { animation: pulse 2s infinite; }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
         }
     </style>
 </head>
 <body>
-    <!-- Header -->
     <div class="header">
         <div class="logo">
-            <span style="font-size: 1.8em;">🌺</span>
+            <svg width="32" height="32" viewBox="0 0 32 32" fill="none" style="flex-shrink: 0;">
+                <circle cx="16" cy="16" r="14" stroke="url(#logoGrad)" stroke-width="2" fill="none"/>
+                <path d="M16 8 L20 16 L16 24 L12 16 Z" fill="url(#logoGrad)"/>
+                <circle cx="16" cy="16" r="4" fill="#1a1a2e"/>
+                <defs>
+                    <linearGradient id="logoGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" style="stop-color:#4ecdc4"/>
+                        <stop offset="100%" style="stop-color:#44a08d"/>
+                    </linearGradient>
+                </defs>
+            </svg>
             <h1>OhanaAI</h1>
         </div>
         <div class="header-actions" id="headerActions" style="display: none;">
@@ -569,10 +503,17 @@
         </div>
     </div>
 
-    <!-- Upload Section -->
     <div class="upload-section" id="uploadSection">
         <div class="upload-box" id="uploadBox">
-            <div class="upload-icon">📁</div>
+            <div class="upload-icon">
+                <svg width="64" height="64" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" style="opacity: 0.7;">
+                    <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/>
+                    <polyline points="14 2 14 8 20 8"/>
+                    <line x1="12" y1="18" x2="12" y2="12"/>
+                    <line x1="9" y1="15" x2="12" y2="12"/>
+                    <line x1="15" y1="15" x2="12" y2="12"/>
+                </svg>
+            </div>
             <h2>Upload Your GEDCOM File</h2>
             <p>Drag and drop your .ged file here, or click to browse</p>
             <button class="btn">Choose File</button>
@@ -583,22 +524,14 @@
         </p>
     </div>
 
-    <!-- Main App -->
     <div class="app-container" id="appContainer">
-        <!-- Sidebar -->
         <div class="sidebar">
             <div class="search-box">
                 <input type="text" class="search-input" id="searchInput" placeholder="Search by name...">
             </div>
             <div class="stats-bar" id="statsBar">
-                <div class="stat">
-                    <span>Total:</span>
-                    <span class="stat-value" id="statTotal">0</span>
-                </div>
-                <div class="stat">
-                    <span>Missing:</span>
-                    <span class="stat-value" id="statMissing">0</span>
-                </div>
+                <div class="stat"><span>Total:</span><span class="stat-value" id="statTotal">0</span></div>
+                <div class="stat"><span>Missing:</span><span class="stat-value" id="statMissing">0</span></div>
             </div>
             <div class="filter-tabs">
                 <div class="filter-tab active" data-filter="all">All</div>
@@ -608,11 +541,9 @@
             <div class="person-list" id="personList"></div>
         </div>
 
-        <!-- Main Content -->
         <div class="main-content">
             <div class="tabs">
                 <div class="tab active" data-tab="fanchart">Fan Chart</div>
-                <div class="tab" data-tab="pedigree">Pedigree View</div>
             </div>
 
             <div class="tab-content active" id="fanchartTab">
@@ -620,28 +551,21 @@
                     <svg id="fanchart"></svg>
                 </div>
             </div>
-
-            <div class="tab-content" id="pedigreeTab">
-                <div class="pedigree-container" id="pedigreeContainer"></div>
-            </div>
         </div>
 
-        <!-- Details Panel -->
         <div class="details-panel" id="detailsPanel">
             <div class="details-header">
                 <div class="details-name" id="detailsName">Select a person</div>
                 <div class="details-dates" id="detailsDates"></div>
             </div>
             <div id="detailsContent">
-                <p style="opacity: 0.5;">Click on a person to view their details and predictions.</p>
+                <p style="opacity: 0.5;">Click on a person to view their details and AI-generated ancestor predictions.</p>
             </div>
         </div>
     </div>
 
-    <!-- Tooltip -->
     <div class="tooltip" id="tooltip"></div>
 
-    <!-- Loading Overlay -->
     <div class="loading-overlay" id="loadingOverlay">
         <div class="spinner"></div>
         <div id="loadingText">Processing GEDCOM file...</div>
@@ -653,9 +577,129 @@
         // ============================================================================
         let individuals = new Map();
         let families = new Map();
-        let predictions = new Map();
         let selectedPersonId = null;
         let currentFilter = 'all';
+
+        // Historical name data by era AND region
+        const maleNamesByEra = {
+            1500: ['John', 'William', 'Thomas', 'Richard', 'Robert', 'Henry', 'Edward', 'James'],
+            1600: ['John', 'William', 'Thomas', 'James', 'Robert', 'Richard', 'George', 'Samuel'],
+            1700: ['John', 'William', 'James', 'Thomas', 'Samuel', 'Joseph', 'Benjamin', 'David'],
+            1800: ['John', 'William', 'James', 'George', 'Charles', 'Thomas', 'Joseph', 'Henry'],
+            1900: ['John', 'William', 'James', 'Robert', 'Joseph', 'Charles', 'George', 'Edward'],
+            1950: ['James', 'Robert', 'John', 'Michael', 'David', 'William', 'Richard', 'Thomas'],
+        };
+
+        const femaleNamesByEra = {
+            1500: ['Mary', 'Elizabeth', 'Margaret', 'Anne', 'Alice', 'Joan', 'Catherine', 'Agnes'],
+            1600: ['Mary', 'Elizabeth', 'Sarah', 'Anne', 'Margaret', 'Jane', 'Martha', 'Hannah'],
+            1700: ['Mary', 'Elizabeth', 'Sarah', 'Hannah', 'Margaret', 'Martha', 'Abigail', 'Rebecca'],
+            1800: ['Mary', 'Elizabeth', 'Sarah', 'Ann', 'Margaret', 'Jane', 'Martha', 'Hannah'],
+            1900: ['Mary', 'Helen', 'Margaret', 'Anna', 'Ruth', 'Elizabeth', 'Dorothy', 'Marie'],
+            1950: ['Mary', 'Linda', 'Patricia', 'Barbara', 'Susan', 'Nancy', 'Deborah', 'Sandra'],
+        };
+
+        const hawaiianMaleNames = ['Keoni', 'Kekoa', 'Kalani', 'Makoa', 'Kainoa', 'Ikaika', 'Kawika', 'Kaleo', 'Kamehameha', 'Kauai', 'Nainoa', 'Palani'];
+        const hawaiianFemaleNames = ['Leilani', 'Malia', 'Kealoha', 'Kalea', 'Kailani', 'Moana', 'Nani', 'Mahina', 'Pualani', 'Haunani', 'Noelani', 'Kalena'];
+
+        // Regional name data
+        const regionalNames = {
+            irish: {
+                male: ['Patrick', 'Michael', 'John', 'James', 'Thomas', 'Daniel', 'Sean', 'Brian', 'Connor', 'Liam'],
+                female: ['Mary', 'Bridget', 'Catherine', 'Margaret', 'Ellen', 'Ann', 'Nora', 'Eileen', 'Kathleen', 'Siobhan']
+            },
+            german: {
+                male: ['Johann', 'Friedrich', 'Wilhelm', 'Heinrich', 'Karl', 'Hans', 'Otto', 'Franz', 'Ludwig', 'August'],
+                female: ['Maria', 'Anna', 'Elisabeth', 'Margarethe', 'Katharina', 'Frieda', 'Gertrude', 'Helene', 'Emma', 'Rosa']
+            },
+            italian: {
+                male: ['Giuseppe', 'Antonio', 'Giovanni', 'Francesco', 'Luigi', 'Angelo', 'Salvatore', 'Vincenzo', 'Domenico', 'Pietro'],
+                female: ['Maria', 'Anna', 'Rosa', 'Concetta', 'Carmela', 'Angela', 'Lucia', 'Giuseppina', 'Teresa', 'Filomena']
+            },
+            polish: {
+                male: ['Jan', 'Stanislaw', 'Jozef', 'Franciszek', 'Antoni', 'Wladyslaw', 'Kazimierz', 'Andrzej', 'Michal', 'Piotr'],
+                female: ['Maria', 'Anna', 'Katarzyna', 'Zofia', 'Jadwiga', 'Helena', 'Stanislawa', 'Jozefa', 'Bronislawa', 'Wanda']
+            },
+            scandinavian: {
+                male: ['Erik', 'Lars', 'Olaf', 'Anders', 'Nils', 'Per', 'Johan', 'Carl', 'Gustaf', 'Sven'],
+                female: ['Anna', 'Maria', 'Kristina', 'Ingrid', 'Karin', 'Margareta', 'Britta', 'Elsa', 'Sigrid', 'Astrid']
+            },
+            scottish: {
+                male: ['James', 'John', 'William', 'Robert', 'Alexander', 'Andrew', 'Donald', 'Duncan', 'Angus', 'Malcolm'],
+                female: ['Mary', 'Margaret', 'Janet', 'Agnes', 'Elizabeth', 'Jean', 'Isabella', 'Catherine', 'Helen', 'Ann']
+            },
+            jewish: {
+                male: ['Abraham', 'Isaac', 'Jacob', 'Moses', 'Samuel', 'David', 'Solomon', 'Benjamin', 'Joseph', 'Nathan'],
+                female: ['Sarah', 'Rebecca', 'Rachel', 'Leah', 'Hannah', 'Miriam', 'Esther', 'Ruth', 'Deborah', 'Naomi']
+            },
+            portuguese: {
+                male: ['Manuel', 'Jose', 'Antonio', 'Joao', 'Francisco', 'Joaquim', 'Carlos', 'Luis', 'Fernando', 'Pedro'],
+                female: ['Maria', 'Ana', 'Isabel', 'Rosa', 'Fernanda', 'Lucia', 'Teresa', 'Francisca', 'Joaquina', 'Antonia']
+            },
+            chinese: {
+                male: ['Wong', 'Lee', 'Chen', 'Ah', 'Fook', 'Kam', 'Sing', 'Wah', 'Yee', 'Chung'],
+                female: ['Mei', 'Ling', 'Jade', 'Pearl', 'Rose', 'Lily', 'Grace', 'Joy', 'Hope', 'Faith']
+            },
+            japanese: {
+                male: ['Takeshi', 'Hiroshi', 'Kenji', 'Masao', 'Taro', 'Ichiro', 'Jiro', 'Saburo', 'Shiro', 'Goro'],
+                female: ['Hanako', 'Yuki', 'Sachiko', 'Kimiko', 'Fumiko', 'Yoshiko', 'Haruko', 'Keiko', 'Michiko', 'Noriko']
+            },
+            filipino: {
+                male: ['Jose', 'Juan', 'Pedro', 'Francisco', 'Antonio', 'Manuel', 'Ramon', 'Carlos', 'Luis', 'Miguel'],
+                female: ['Maria', 'Josefa', 'Dolores', 'Carmen', 'Rosa', 'Luisa', 'Teresa', 'Francisca', 'Esperanza', 'Luz']
+            }
+        };
+
+        // Surname origin patterns for ethnic detection
+        const surnamePatterns = {
+            irish: [/^O'/, /^Mc/, /^Mac/, /^Fitz/, /(agh|igan|ihan|elly|eary|arty)$/i],
+            scottish: [/^Mac/, /^Mc/, /(son|ie)$/i],
+            german: [/(mann|berg|stein|burg|feld|bach|hoff|meyer|müller|schmidt|schneider|fischer|weber|wagner|becker|schulz)$/i, /^(von|van)\s/i],
+            polish: [/(ski|sky|wicz|czyk|iak|ek|ak|owski)$/i],
+            italian: [/(ini|ino|etti|ello|ucci|one|oli|ari|ese|ano|isi|otti)$/i, /^(di|de|da|del|della)\s/i],
+            jewish: [/(berg|stein|man|witz|sky|baum|blum|gold|silver|rosen|green|weiss|schwartz)$/i],
+            scandinavian: [/(son|sen|sson|ssen|qvist|quist|berg|gren|lund|strom|dahl)$/i],
+            portuguese: [/(es|ez|az|oz|eira|eiro|inho|inha)$/i, /^(da|de|dos|das)\s/i],
+            hawaiian: [/^(ka|ke|la|na|ma|ho|hu|ah|ku|pa|lo|mo|no|po|ha|hi|ko|le|li|lu|mi|mu|ni|nu|pi|pu)/i],
+            chinese: [/^(Wong|Lee|Chan|Chen|Chow|Chu|Ho|Fong|Lam|Leung|Lim|Liu|Ng|Tan|Wang|Wu|Yang|Yee|Young|Yu)$/i],
+            japanese: [/(moto|yama|kawa|mura|ta|da|no|shita|uchi|wara|hara|saki|zaki|guchi|oka|shima|jima)$/i],
+            filipino: [/^(de la|del|de los|delos)\s/i, /(zon|zon|quizon|quizon)$/i]
+        };
+
+        // Occupation patterns by era and location
+        const occupationsByEraAndLocation = {
+            hawaii: {
+                1800: ['Farmer', 'Fisherman', 'Ranch hand', 'Plantation laborer', 'Sugar worker'],
+                1850: ['Plantation laborer', 'Sugar worker', 'Farmer', 'Fisherman', 'Paniolo (cowboy)'],
+                1900: ['Plantation worker', 'Dock worker', 'Fisherman', 'Farmer', 'Merchant', 'Laborer'],
+                1950: ['Military', 'Hotel worker', 'Construction', 'Merchant', 'Government worker']
+            },
+            rural_us: {
+                1700: ['Farmer', 'Blacksmith', 'Miller', 'Carpenter', 'Wheelwright'],
+                1800: ['Farmer', 'Laborer', 'Blacksmith', 'Carpenter', 'Miller', 'Cooper'],
+                1850: ['Farmer', 'Farm laborer', 'Carpenter', 'Blacksmith', 'Merchant'],
+                1900: ['Farmer', 'Laborer', 'Carpenter', 'Mechanic', 'Railroad worker'],
+                1950: ['Farmer', 'Factory worker', 'Mechanic', 'Truck driver', 'Construction']
+            },
+            urban_us: {
+                1800: ['Merchant', 'Clerk', 'Craftsman', 'Laborer', 'Shopkeeper'],
+                1850: ['Factory worker', 'Clerk', 'Merchant', 'Laborer', 'Craftsman'],
+                1900: ['Factory worker', 'Clerk', 'Salesman', 'Laborer', 'Machinist'],
+                1950: ['Office worker', 'Factory worker', 'Salesman', 'Manager', 'Mechanic']
+            },
+            mining: {
+                1850: ['Miner', 'Prospector', 'Laborer', 'Merchant', 'Blacksmith'],
+                1900: ['Miner', 'Mining engineer', 'Laborer', 'Mechanic', 'Merchant']
+            }
+        };
+
+        // Family patterns cache (built after GEDCOM parse)
+        let familyPatterns = {
+            namingPatterns: new Map(),  // Track recurring names in family lines
+            migrationPatterns: [],       // Track location changes across generations
+            occupationPatterns: new Map(), // Track occupation inheritance
+            surnameVariants: new Map()   // Track different spellings of same surname
+        };
 
         // ============================================================================
         // GEDCOM Parser
@@ -681,38 +725,20 @@
                     if (pointer) {
                         if (tag === 'INDI' || value === 'INDI') {
                             currentRecord = {
-                                id: pointer,
-                                givenName: '',
-                                surname: '',
-                                gender: null,
-                                birthYear: null,
-                                birthPlace: null,
-                                deathYear: null,
-                                deathPlace: null,
-                                father: null,
-                                mother: null,
-                                spouses: [],
-                                children: [],
-                                siblings: []
+                                id: pointer, givenName: '', surname: '', gender: null,
+                                birthYear: null, birthPlace: null, deathYear: null, deathPlace: null,
+                                father: null, mother: null, spouses: [], children: [], siblings: []
                             };
                             currentType = 'INDI';
                             inds.set(pointer, currentRecord);
                         } else if (tag === 'FAM' || value === 'FAM') {
-                            currentRecord = {
-                                id: pointer,
-                                husband: null,
-                                wife: null,
-                                children: []
-                            };
+                            currentRecord = { id: pointer, husband: null, wife: null, children: [] };
                             currentType = 'FAM';
                             fams.set(pointer, currentRecord);
                         } else {
                             currentRecord = null;
                             currentType = null;
                         }
-                    } else {
-                        currentRecord = null;
-                        currentType = null;
                     }
                     continue;
                 }
@@ -729,11 +755,8 @@
                             currentRecord.givenName = givenMatch ? givenMatch[1].trim() : '';
                         } else if (tag === 'SEX') {
                             currentRecord.gender = value === 'M' ? 'M' : value === 'F' ? 'F' : null;
-                        } else if (tag === 'BIRT') {
-                            currentEvent = 'BIRT';
-                        } else if (tag === 'DEAT') {
-                            currentEvent = 'DEAT';
-                        }
+                        } else if (tag === 'BIRT') currentEvent = 'BIRT';
+                        else if (tag === 'DEAT') currentEvent = 'DEAT';
                     } else if (currentType === 'FAM') {
                         if (tag === 'HUSB') currentRecord.husband = value;
                         else if (tag === 'WIFE') currentRecord.wife = value;
@@ -754,7 +777,7 @@
             }
 
             // Build relationships
-            for (const [famId, fam] of fams) {
+            for (const [, fam] of fams) {
                 for (const childId of fam.children) {
                     const child = inds.get(childId);
                     if (child) {
@@ -770,7 +793,6 @@
                     if (wife && !wife.spouses.includes(fam.husband)) wife.spouses.push(fam.husband);
                 }
 
-                // Siblings
                 for (let i = 0; i < fam.children.length; i++) {
                     for (let j = i + 1; j < fam.children.length; j++) {
                         const c1 = inds.get(fam.children[i]);
@@ -780,138 +802,993 @@
                     }
                 }
 
-                // Children
-                if (fam.husband) {
-                    const parent = inds.get(fam.husband);
-                    if (parent) {
-                        for (const childId of fam.children) {
-                            if (!parent.children.includes(childId)) parent.children.push(childId);
+                [fam.husband, fam.wife].forEach(parentId => {
+                    if (parentId) {
+                        const parent = inds.get(parentId);
+                        if (parent) {
+                            fam.children.forEach(childId => {
+                                if (!parent.children.includes(childId)) parent.children.push(childId);
+                            });
                         }
                     }
-                }
-                if (fam.wife) {
-                    const parent = inds.get(fam.wife);
-                    if (parent) {
-                        for (const childId of fam.children) {
-                            if (!parent.children.includes(childId)) parent.children.push(childId);
-                        }
-                    }
-                }
+                });
             }
 
             return { individuals: inds, families: fams };
         }
 
         // ============================================================================
-        // Feature Extraction & Prediction (simplified in-browser version)
+        // Family Pattern Analysis (run after GEDCOM parse)
         // ============================================================================
-        function extractFeatures(person) {
-            const features = new Float32Array(176);
-
-            // Demographic
-            features[0] = person.gender === null ? 1 : 0;
-            features[1] = person.gender === 'M' ? 1 : 0;
-            features[2] = person.gender === 'F' ? 1 : 0;
-            features[3] = person.givenName ? 1 : 0;
-            features[4] = person.surname ? 1 : 0;
-            features[5] = Math.min((person.givenName?.length || 0) / 20, 1);
-            features[6] = Math.min((person.surname?.length || 0) / 20, 1);
-
-            // Temporal
-            const birthNorm = person.birthYear ? (person.birthYear - 1700) / 400 : 0;
-            features[8] = birthNorm;
-            features[10] = person.birthYear ? 1 : 0;
-            features[11] = person.deathYear ? 1 : 0;
-
-            // Graph structural
-            const totalConn = (person.father ? 1 : 0) + (person.mother ? 1 : 0) +
-                              person.spouses.length + person.children.length + person.siblings.length;
-            features[120] = Math.min(totalConn / 20, 1);
-            features[125] = (!person.father && !person.mother) ? 1 : 0;
-            features[126] = person.children.length === 0 ? 1 : 0;
-            features[127] = (person.father && person.mother) ? 1 : 0;
-
-            // Relationship
-            features[136] = person.father ? 0 : 1;
-            features[137] = person.mother ? 0 : 1;
-            features[138] = (!person.father && !person.mother) ? 1 : 0;
-            features[139] = (person.father && person.mother) ? 1 : 0;
-            features[140] = person.spouses.length === 0 ? 1 : 0;
-
-            return features;
-        }
-
-        function runHeuristicPrediction(person) {
-            // Simple heuristic prediction when ONNX isn't available
-            return {
-                missingFather: person.father ? 0.1 : 0.9,
-                missingMother: person.mother ? 0.1 : 0.9,
-                missingSpouse: person.spouses.length > 0 ? 0.2 : 0.7,
-                missingChildren: person.children.length > 0 ? 0.2 : 0.6,
-                missingSiblings: person.siblings.length > 0 ? 0.3 : 0.7
+        function analyzeFamilyPatterns() {
+            familyPatterns = {
+                namingPatterns: new Map(),
+                migrationPatterns: [],
+                occupationPatterns: new Map(),
+                surnameVariants: new Map(),
+                siblingBirthGaps: [],
+                marriageAgeDiffs: []
             };
-        }
 
-        function generatePredictions() {
+            // Analyze naming patterns - children named after grandparents
             for (const [id, person] of individuals) {
-                predictions.set(id, runHeuristicPrediction(person));
-            }
-        }
-
-        // ============================================================================
-        // Find Candidates
-        // ============================================================================
-        function findCandidates(personId, relationType) {
-            const person = individuals.get(personId);
-            if (!person) return [];
-
-            const candidates = [];
-
-            for (const [candId, cand] of individuals) {
-                if (candId === personId) continue;
-                if (person.father === candId || person.mother === candId) continue;
-                if (person.spouses.includes(candId)) continue;
-
-                let score = 0;
-                const reasons = [];
-
-                if (relationType === 'father') {
-                    if (cand.gender !== 'M') continue;
-                    if (cand.birthYear && person.birthYear) {
-                        const ageDiff = person.birthYear - cand.birthYear;
-                        if (ageDiff >= 18 && ageDiff <= 50) {
-                            score += 0.3;
-                            reasons.push(`Age gap: ${ageDiff} years`);
-                        } else if (ageDiff < 15 || ageDiff > 60) continue;
+                if (person.givenName) {
+                    // Track given names by surname to find family naming traditions
+                    const key = person.surname?.toLowerCase() || 'unknown';
+                    if (!familyPatterns.namingPatterns.has(key)) {
+                        familyPatterns.namingPatterns.set(key, { male: {}, female: {} });
                     }
-                    if (person.surname && cand.surname && person.surname.toLowerCase() === cand.surname.toLowerCase()) {
-                        score += 0.5;
-                        reasons.push('Same surname');
-                    }
-                } else if (relationType === 'mother') {
-                    if (cand.gender !== 'F') continue;
-                    if (cand.birthYear && person.birthYear) {
-                        const ageDiff = person.birthYear - cand.birthYear;
-                        if (ageDiff >= 16 && ageDiff <= 45) {
-                            score += 0.3;
-                            reasons.push(`Age gap: ${ageDiff} years`);
-                        } else if (ageDiff < 12 || ageDiff > 55) continue;
+                    const genderKey = person.gender === 'M' ? 'male' : 'female';
+                    const nameData = familyPatterns.namingPatterns.get(key)[genderKey];
+                    const name = person.givenName.split(' ')[0]; // First name only
+                    nameData[name] = (nameData[name] || 0) + 1;
+                }
+
+                // Track sibling birth gaps
+                if (person.siblings.length > 0 && person.birthYear) {
+                    person.siblings.forEach(sibId => {
+                        const sib = individuals.get(sibId);
+                        if (sib?.birthYear) {
+                            const gap = Math.abs(person.birthYear - sib.birthYear);
+                            if (gap > 0 && gap < 20) {
+                                familyPatterns.siblingBirthGaps.push(gap);
+                            }
+                        }
+                    });
+                }
+
+                // Track marriage age differences
+                if (person.spouses.length > 0 && person.birthYear) {
+                    person.spouses.forEach(spouseId => {
+                        const spouse = individuals.get(spouseId);
+                        if (spouse?.birthYear) {
+                            const diff = person.gender === 'M'
+                                ? person.birthYear - spouse.birthYear
+                                : spouse.birthYear - person.birthYear;
+                            familyPatterns.marriageAgeDiffs.push(diff);
+                        }
+                    });
+                }
+
+                // Track migration patterns
+                if (person.birthPlace && person.father) {
+                    const father = individuals.get(person.father);
+                    if (father?.birthPlace && father.birthPlace !== person.birthPlace) {
+                        familyPatterns.migrationPatterns.push({
+                            from: father.birthPlace,
+                            to: person.birthPlace,
+                            year: person.birthYear,
+                            surname: person.surname
+                        });
                     }
                 }
 
-                if (score > 0) {
-                    candidates.push({
-                        id: candId,
-                        name: `${cand.givenName || ''} ${cand.surname || ''}`.trim() || candId,
-                        birthYear: cand.birthYear,
-                        score,
-                        reasons: reasons.join('; ')
+                // Track occupations by surname
+                if (person.occupation) {
+                    const key = person.surname?.toLowerCase() || 'unknown';
+                    if (!familyPatterns.occupationPatterns.has(key)) {
+                        familyPatterns.occupationPatterns.set(key, []);
+                    }
+                    familyPatterns.occupationPatterns.get(key).push(person.occupation);
+                }
+            }
+        }
+
+        // Get sibling data for a person
+        function getSiblingData(personId) {
+            const person = individuals.get(personId);
+            if (!person) return { siblings: [], birthYears: [], avgGap: 2.5 };
+
+            const siblings = person.siblings.map(id => individuals.get(id)).filter(Boolean);
+            const birthYears = siblings.map(s => s.birthYear).filter(Boolean).sort((a, b) => a - b);
+
+            // Calculate average gap
+            let avgGap = 2.5; // Default
+            if (familyPatterns.siblingBirthGaps.length > 5) {
+                avgGap = familyPatterns.siblingBirthGaps.reduce((a, b) => a + b, 0) / familyPatterns.siblingBirthGaps.length;
+            }
+
+            return { siblings, birthYears, avgGap };
+        }
+
+        // Detect ethnic origin from surname
+        function detectEthnicOrigin(surname) {
+            if (!surname) return null;
+
+            for (const [ethnicity, patterns] of Object.entries(surnamePatterns)) {
+                for (const pattern of patterns) {
+                    if (pattern.test(surname)) {
+                        return ethnicity;
+                    }
+                }
+            }
+            return null;
+        }
+
+        // Get family naming tradition names
+        function getFamilyNames(surname, gender, person) {
+            const familyNames = [];
+            const reasoning = [];
+
+            // Check grandparents' names (traditional naming pattern)
+            const grandparents = [];
+            if (person.father) {
+                const father = individuals.get(person.father);
+                if (father?.father) grandparents.push({ id: father.father, side: 'paternal grandfather' });
+                if (father?.mother) grandparents.push({ id: father.mother, side: 'paternal grandmother' });
+            }
+            if (person.mother) {
+                const mother = individuals.get(person.mother);
+                if (mother?.father) grandparents.push({ id: mother.father, side: 'maternal grandfather' });
+                if (mother?.mother) grandparents.push({ id: mother.mother, side: 'maternal grandmother' });
+            }
+
+            grandparents.forEach(gp => {
+                const ancestor = individuals.get(gp.id);
+                if (ancestor?.givenName) {
+                    const matchesGender = (gender === 'father' && ancestor.gender === 'M') ||
+                                         (gender === 'mother' && ancestor.gender === 'F');
+                    if (matchesGender) {
+                        familyNames.push(ancestor.givenName.split(' ')[0]);
+                        reasoning.push(`${ancestor.givenName} from ${gp.side}`);
+                    }
+                }
+            });
+
+            // Check siblings' names for patterns
+            if (person.siblings.length > 0) {
+                const siblingNames = person.siblings.map(id => {
+                    const sib = individuals.get(id);
+                    return sib?.givenName?.split(' ')[0];
+                }).filter(Boolean);
+
+                // Names that appear in siblings might indicate family traditions
+                if (siblingNames.length > 0) {
+                    reasoning.push(`Siblings: ${siblingNames.slice(0, 3).join(', ')}`);
+                }
+            }
+
+            // Check family naming patterns from the whole tree
+            const key = surname?.toLowerCase() || 'unknown';
+            if (familyPatterns.namingPatterns.has(key)) {
+                const genderKey = gender === 'father' ? 'male' : 'female';
+                const nameFreq = familyPatterns.namingPatterns.get(key)[genderKey];
+                const sortedNames = Object.entries(nameFreq)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 5)
+                    .map(([name]) => name);
+
+                if (sortedNames.length > 0) {
+                    sortedNames.forEach(name => {
+                        if (!familyNames.includes(name)) familyNames.push(name);
+                    });
+                    reasoning.push(`Common in ${surname} family: ${sortedNames.slice(0, 3).join(', ')}`);
+                }
+            }
+
+            return { names: familyNames, reasoning };
+        }
+
+        // Predict maiden name using multiple clues
+        function predictMaidenName(person, spouse, knownAncestors) {
+            const clues = [];
+            const reasoning = [];
+
+            // Clue 1: Check maternal grandparents
+            if (person.mother) {
+                const mother = individuals.get(person.mother);
+                if (mother?.father) {
+                    const maternalGrandfather = individuals.get(mother.father);
+                    if (maternalGrandfather?.surname) {
+                        clues.push({ surname: maternalGrandfather.surname, confidence: 0.7, source: 'maternal grandfather' });
+                    }
+                }
+            }
+
+            // Clue 2: Check siblings' spouses for intermarriage patterns
+            // (Families often married into the same families repeatedly)
+            if (person.siblings.length > 0) {
+                const siblingSpouseSurnames = [];
+                person.siblings.forEach(sibId => {
+                    const sib = individuals.get(sibId);
+                    if (sib?.spouses) {
+                        sib.spouses.forEach(spouseId => {
+                            const sp = individuals.get(spouseId);
+                            if (sp?.surname && sp.gender === 'F') {
+                                siblingSpouseSurnames.push(sp.surname);
+                            }
+                        });
+                    }
+                });
+
+                if (siblingSpouseSurnames.length > 0) {
+                    const counts = {};
+                    siblingSpouseSurnames.forEach(s => counts[s] = (counts[s] || 0) + 1);
+                    const mostCommon = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+                    if (mostCommon && mostCommon[1] > 1) {
+                        clues.push({ surname: mostCommon[0], confidence: 0.4, source: 'sibling spouse pattern' });
+                    }
+                }
+            }
+
+            // Clue 3: Look at all females in same location/time for common surnames
+            if (person.birthPlace) {
+                const localSurnames = {};
+                for (const [, ind] of individuals) {
+                    if (ind.gender === 'F' && ind.birthPlace === person.birthPlace && ind.surname) {
+                        if (Math.abs((ind.birthYear || 1900) - (person.birthYear || 1900)) < 30) {
+                            localSurnames[ind.surname] = (localSurnames[ind.surname] || 0) + 1;
+                        }
+                    }
+                }
+                const commonLocal = Object.entries(localSurnames)
+                    .filter(([s]) => s !== person.surname && s !== spouse?.surname)
+                    .sort((a, b) => b[1] - a[1])
+                    .slice(0, 3);
+
+                if (commonLocal.length > 0) {
+                    reasoning.push(`Common local maiden names: ${commonLocal.map(([s]) => s).join(', ')}`);
+                }
+            }
+
+            // Return best guess
+            if (clues.length > 0) {
+                clues.sort((a, b) => b.confidence - a.confidence);
+                const best = clues[0];
+                reasoning.unshift(`${best.source}: ${best.surname}`);
+                return { surname: best.surname, confidence: best.confidence, reasoning, alternatives: clues.slice(1) };
+            }
+
+            return { surname: null, confidence: 0.1, reasoning: ['No maiden name clues found'], alternatives: [] };
+        }
+
+        // Get migration pattern suggestions
+        function getMigrationSuggestions(locations, birthYear) {
+            const suggestions = [];
+
+            // Check known family migration patterns
+            const relevantMigrations = familyPatterns.migrationPatterns.filter(m => {
+                const yearMatch = !m.year || Math.abs(m.year - birthYear) < 50;
+                const locationMatch = locations.some(l => l.includes(m.to) || m.to.includes(l));
+                return yearMatch && locationMatch;
+            });
+
+            if (relevantMigrations.length > 0) {
+                const fromLocations = [...new Set(relevantMigrations.map(m => m.from))];
+                suggestions.push({
+                    type: 'Family migration pattern detected',
+                    locations: fromLocations,
+                    tip: `Family may have migrated from: ${fromLocations.slice(0, 3).join(', ')}`
+                });
+            }
+
+            // Historical migration patterns
+            const locLower = locations.join(' ').toLowerCase();
+
+            if (locLower.includes('hawaii')) {
+                if (birthYear < 1900) {
+                    suggestions.push({
+                        type: 'Hawaii plantation era',
+                        locations: ['China', 'Japan', 'Portugal', 'Philippines', 'Korea'],
+                        tip: 'Many Hawaii ancestors came as plantation workers from Asia/Portugal'
                     });
                 }
             }
 
-            candidates.sort((a, b) => b.score - a.score);
-            return candidates.slice(0, 5);
+            if (locLower.includes('new york') || locLower.includes('boston') || locLower.includes('philadelphia')) {
+                if (birthYear >= 1840 && birthYear <= 1920) {
+                    suggestions.push({
+                        type: 'Ellis Island era immigration',
+                        locations: ['Ireland', 'Germany', 'Italy', 'Poland', 'Russia'],
+                        tip: 'Major immigration port - check ship manifests and naturalization records'
+                    });
+                }
+            }
+
+            if (locLower.includes('california') && birthYear >= 1848 && birthYear <= 1860) {
+                suggestions.push({
+                    type: 'Gold Rush migration',
+                    locations: ['Eastern US', 'China', 'Mexico', 'Chile'],
+                    tip: 'Many came during California Gold Rush (1848-1855)'
+                });
+            }
+
+            return suggestions;
+        }
+
+        // Get occupation prediction based on family patterns and location
+        function predictOccupation(surname, birthYear, location, relationship, knownAncestors) {
+            const predictions = [];
+            const reasoning = [];
+
+            // Check family occupation patterns
+            const key = surname?.toLowerCase() || 'unknown';
+            if (familyPatterns.occupationPatterns.has(key)) {
+                const familyOccs = familyPatterns.occupationPatterns.get(key);
+                const counts = {};
+                familyOccs.forEach(o => counts[o] = (counts[o] || 0) + 1);
+                const sorted = Object.entries(counts).sort((a, b) => b[1] - a[1]);
+                if (sorted.length > 0) {
+                    predictions.push({ occupation: sorted[0][0], confidence: 0.6 });
+                    reasoning.push(`Family occupation pattern: ${sorted[0][0]} (${sorted[0][1]} family members)`);
+                }
+            }
+
+            // Check known ancestors
+            const ancestorOccs = knownAncestors.filter(a => a.occupation).map(a => a.occupation);
+            if (ancestorOccs.length > 0) {
+                const counts = {};
+                ancestorOccs.forEach(o => counts[o] = (counts[o] || 0) + 1);
+                const mostCommon = Object.entries(counts).sort((a, b) => b[1] - a[1])[0];
+                if (mostCommon) {
+                    predictions.push({ occupation: mostCommon[0], confidence: 0.5 });
+                    reasoning.push(`Ancestor occupation: ${mostCommon[0]}`);
+                }
+            }
+
+            // Location and era based prediction
+            const locLower = location?.toLowerCase() || '';
+            const era = getEra(birthYear);
+
+            let locationType = 'rural_us';
+            if (locLower.includes('hawaii')) locationType = 'hawaii';
+            else if (locLower.includes('mining') || locLower.includes('gold')) locationType = 'mining';
+            else if (['new york', 'boston', 'chicago', 'philadelphia', 'baltimore', 'san francisco', 'los angeles']
+                .some(city => locLower.includes(city))) locationType = 'urban_us';
+
+            const eraOccs = occupationsByEraAndLocation[locationType]?.[era];
+            if (eraOccs && relationship === 'father') {
+                predictions.push({ occupation: eraOccs[0], confidence: 0.3 });
+                reasoning.push(`Common for ${era}s ${locationType.replace('_', ' ')}: ${eraOccs.slice(0, 3).join(', ')}`);
+            }
+
+            if (relationship === 'mother') {
+                predictions.push({ occupation: 'Homemaker', confidence: 0.5 });
+                reasoning.push('Most women listed as homemaker/housewife in historical records');
+            }
+
+            // Return best prediction
+            predictions.sort((a, b) => b.confidence - a.confidence);
+            return {
+                occupation: predictions[0]?.occupation || null,
+                confidence: predictions[0]?.confidence || 0.2,
+                alternatives: predictions.slice(1).map(p => p.occupation),
+                reasoning
+            };
+        }
+
+        // ============================================================================
+        // Attribute Generation for Missing Ancestors
+        // ============================================================================
+        function getEra(year) {
+            const eras = [1500, 1600, 1700, 1800, 1900, 1950];
+            for (let i = eras.length - 1; i >= 0; i--) {
+                if (year >= eras[i]) return eras[i];
+            }
+            return 1500;
+        }
+
+        function predictAncestorAttributes(personId, relationship) {
+            const person = individuals.get(personId);
+            if (!person) return null;
+
+            const reasoning = [];
+
+            // Get spouse for reference
+            const spouse = relationship === 'father'
+                ? (person.mother ? individuals.get(person.mother) : null)
+                : (person.father ? individuals.get(person.father) : null);
+
+            // Collect known ancestors for pattern analysis
+            const knownAncestors = [];
+            const collectAncestors = (id, depth = 0) => {
+                if (depth > 4) return;
+                const p = individuals.get(id);
+                if (!p) return;
+                if (id !== personId) knownAncestors.push(p);
+                if (p.father) collectAncestors(p.father, depth + 1);
+                if (p.mother) collectAncestors(p.mother, depth + 1);
+            };
+            collectAncestors(personId);
+
+            // === IMPROVED Birth Year Prediction using siblings ===
+            let birthYear;
+            const childBirth = person.birthYear || 1900;
+
+            // Use family-specific marriage age difference if available
+            let parentAgeDiff = relationship === 'father' ? 3 : -3;
+            if (familyPatterns.marriageAgeDiffs.length > 5) {
+                parentAgeDiff = relationship === 'father'
+                    ? Math.round(familyPatterns.marriageAgeDiffs.reduce((a, b) => a + b, 0) / familyPatterns.marriageAgeDiffs.length)
+                    : -Math.round(familyPatterns.marriageAgeDiffs.reduce((a, b) => a + b, 0) / familyPatterns.marriageAgeDiffs.length);
+            }
+
+            const siblingData = getSiblingData(personId);
+            const parentAge = relationship === 'father' ? 28 : 24;
+
+            if (spouse?.birthYear) {
+                birthYear = spouse.birthYear + parentAgeDiff;
+                reasoning.push(`Based on spouse's birth year (${spouse.birthYear}) with typical ${Math.abs(parentAgeDiff)} year age difference`);
+            } else if (siblingData.birthYears.length > 0) {
+                // Use oldest child to estimate (parent was likely 20-30 at first child's birth)
+                const oldestChild = Math.min(...siblingData.birthYears, childBirth);
+                birthYear = oldestChild - parentAge;
+                reasoning.push(`Estimated from oldest sibling's birth (${oldestChild}) - parent likely ${parentAge} at first child`);
+            } else {
+                birthYear = childBirth - parentAge;
+                reasoning.push(`Estimated ${parentAge} years before child's birth`);
+            }
+
+            // Tighter range if we have sibling data
+            const rangeSize = siblingData.birthYears.length > 2 ? 7 : 10;
+            const birthYearRange = [birthYear - rangeSize, birthYear + 5];
+
+            // === IMPROVED Surname Prediction ===
+            let surname, surnameConfidence;
+            let alternateSurnames = [];
+            let maidenNameAlternatives = [];
+
+            if (relationship === 'father') {
+                surname = person.surname || 'Unknown';
+                surnameConfidence = person.surname ? 0.95 : 0.1;
+                if (person.surname) {
+                    reasoning.push("Surname inherited by child (patrilineal tradition)");
+                    alternateSurnames = generateSpellingVariants(person.surname);
+                }
+            } else {
+                // IMPROVED: Use multi-source maiden name prediction
+                const maidenPrediction = predictMaidenName(person, spouse, knownAncestors);
+
+                if (maidenPrediction.surname) {
+                    surname = maidenPrediction.surname;
+                    surnameConfidence = maidenPrediction.confidence;
+                    alternateSurnames = generateSpellingVariants(maidenPrediction.surname);
+                    maidenNameAlternatives = maidenPrediction.alternatives.map(a => a.surname);
+                    maidenPrediction.reasoning.forEach(r => reasoning.push(r));
+                } else if (spouse?.surname) {
+                    surname = `Unknown (married ${spouse.surname})`;
+                    surnameConfidence = 0.2;
+                    reasoning.push("Maiden name unknown - search marriage records for bride's family name");
+                } else {
+                    surname = "Unknown";
+                    surnameConfidence = 0.1;
+                }
+            }
+
+            // === Location Prediction with Migration Patterns ===
+            const locations = [];
+            if (person.birthPlace) locations.push(person.birthPlace);
+            if (spouse?.birthPlace) locations.push(spouse.birthPlace);
+
+            // Check known ancestors
+            knownAncestors.forEach(anc => {
+                if (anc.birthPlace) locations.push(anc.birthPlace);
+            });
+
+            let birthLocation = 'Unknown';
+            let locationConfidence = 0.1;
+            let locationComponents = {};
+            let alternateLocations = [];
+
+            if (locations.length > 0) {
+                // Find most common location components
+                const componentCounts = [{}, {}, {}, {}];
+                locations.forEach(loc => {
+                    const parts = loc.split(',').map(p => p.trim());
+                    parts.forEach((part, i) => {
+                        if (i < 4 && part) {
+                            componentCounts[i][part] = (componentCounts[i][part] || 0) + 1;
+                        }
+                    });
+                });
+
+                const topComponents = componentCounts.map(counts => {
+                    const entries = Object.entries(counts);
+                    return entries.length > 0 ? entries.sort((a, b) => b[1] - a[1])[0][0] : null;
+                }).filter(Boolean);
+
+                if (topComponents.length > 0) {
+                    birthLocation = topComponents.join(', ');
+                    locationConfidence = Math.min(locations.length / 4, 0.85);
+                    const labels = ['city', 'county', 'state', 'country'];
+                    topComponents.forEach((comp, i) => {
+                        if (i < labels.length) locationComponents[labels[i]] = comp;
+                    });
+                    reasoning.push(`Location based on ${locations.length} family locations`);
+
+                    const uniqueLocations = [...new Set(locations)];
+                    alternateLocations = uniqueLocations.filter(l => l !== birthLocation).slice(0, 3);
+                }
+            }
+
+            // Get migration suggestions
+            const migrationSuggestions = getMigrationSuggestions(locations, birthYear);
+
+            // === IMPROVED Given Names with Family Patterns ===
+            const era = getEra(birthYear);
+            const isHawaiian = birthLocation.toLowerCase().includes('hawaii') ||
+                               birthLocation.toLowerCase().includes('honolulu');
+
+            // Detect ethnic origin from surname
+            const detectedEthnicity = detectEthnicOrigin(surname !== 'Unknown' ? surname : person.surname);
+
+            // Get family naming tradition names first
+            const familyNameData = getFamilyNames(person.surname, relationship, person);
+            let givenNames = [...familyNameData.names];
+            familyNameData.reasoning.forEach(r => reasoning.push(`Naming pattern: ${r}`));
+
+            // Add ethnicity-specific names
+            if (detectedEthnicity && regionalNames[detectedEthnicity]) {
+                const ethnicNames = relationship === 'father'
+                    ? regionalNames[detectedEthnicity].male
+                    : regionalNames[detectedEthnicity].female;
+                ethnicNames.forEach(n => {
+                    if (!givenNames.includes(n)) givenNames.push(n);
+                });
+                reasoning.push(`${detectedEthnicity.charAt(0).toUpperCase() + detectedEthnicity.slice(1)} names based on surname pattern`);
+            } else if (isHawaiian) {
+                const hawaiianNames = relationship === 'father' ? hawaiianMaleNames : hawaiianFemaleNames;
+                hawaiianNames.forEach(n => {
+                    if (!givenNames.includes(n)) givenNames.push(n);
+                });
+                reasoning.push("Hawaiian names suggested based on location");
+            } else {
+                // Fall back to era-based names
+                const eraNames = relationship === 'father'
+                    ? (maleNamesByEra[era] || maleNamesByEra[1800])
+                    : (femaleNamesByEra[era] || femaleNamesByEra[1800]);
+                eraNames.forEach(n => {
+                    if (!givenNames.includes(n)) givenNames.push(n);
+                });
+                if (givenNames.length === eraNames.length) {
+                    reasoning.push(`Names common for ${era}s era`);
+                }
+            }
+
+            // === Death Year ===
+            const lifespanByEra = { 1500: 45, 1600: 45, 1700: 50, 1800: 55, 1900: 65, 1950: 75 };
+            const lifespan = lifespanByEra[era] || 60;
+            let deathYear = birthYear + lifespan;
+            if (deathYear < childBirth) deathYear = childBirth + 15;
+            const deathYearRange = [deathYear - 15, deathYear + 15];
+            reasoning.push(`Death estimated from ${lifespan}-year average lifespan for era`);
+
+            // === IMPROVED Occupation Prediction ===
+            const occPrediction = predictOccupation(person.surname, birthYear, birthLocation, relationship, knownAncestors);
+            const occupation = occPrediction.occupation;
+            const occupationConfidence = occPrediction.confidence;
+            const alternateOccupations = occPrediction.alternatives;
+            occPrediction.reasoning.forEach(r => reasoning.push(r));
+
+            // === IMPROVED Ethnic Origin Detection ===
+            let origin = null;
+            let originConfidence = 0.3;
+            const locLower = birthLocation.toLowerCase();
+
+            // First check surname patterns
+            if (detectedEthnicity) {
+                origin = detectedEthnicity.charAt(0).toUpperCase() + detectedEthnicity.slice(1);
+                originConfidence = 0.65;
+                reasoning.push(`Ethnic origin from surname pattern analysis`);
+            }
+
+            // Then check location (can override or confirm)
+            if (isHawaiian) {
+                if (detectedEthnicity === 'hawaiian') {
+                    origin = 'Native Hawaiian';
+                    originConfidence = 0.8;
+                } else if (detectedEthnicity) {
+                    origin = `${origin} (in Hawaii)`;
+                    originConfidence = 0.7;
+                } else {
+                    origin = 'Hawaiian/Mixed Heritage';
+                    originConfidence = 0.5;
+                }
+            } else if (!origin) {
+                if (locLower.includes('england') || locLower.includes('britain')) {
+                    origin = 'English';
+                    originConfidence = 0.6;
+                } else if (locLower.includes('ireland')) {
+                    origin = 'Irish';
+                    originConfidence = 0.6;
+                } else if (locLower.includes('german') || locLower.includes('prussia')) {
+                    origin = 'German';
+                    originConfidence = 0.6;
+                } else if (locLower.includes('italy') || locLower.includes('sicily')) {
+                    origin = 'Italian';
+                    originConfidence = 0.6;
+                } else if (locLower.includes('poland') || locLower.includes('russia')) {
+                    origin = 'Eastern European';
+                    originConfidence = 0.5;
+                } else if (locLower.includes('sweden') || locLower.includes('norway') || locLower.includes('denmark')) {
+                    origin = 'Scandinavian';
+                    originConfidence = 0.6;
+                } else if (locLower.includes('scotland')) {
+                    origin = 'Scottish';
+                    originConfidence = 0.6;
+                } else if (locLower.includes('portugal') || locLower.includes('azores')) {
+                    origin = 'Portuguese';
+                    originConfidence = 0.6;
+                } else if (locLower.includes('china') || locLower.includes('canton')) {
+                    origin = 'Chinese';
+                    originConfidence = 0.7;
+                } else if (locLower.includes('japan')) {
+                    origin = 'Japanese';
+                    originConfidence = 0.7;
+                } else if (locLower.includes('philippines') || locLower.includes('manila')) {
+                    origin = 'Filipino';
+                    originConfidence = 0.7;
+                }
+            }
+
+            // === Generate Search Suggestions ===
+            const searchSuggestions = generateSearchSuggestions(
+                birthYear, birthYearRange, birthLocation, locationComponents,
+                surname, alternateSurnames, relationship, person, spouse
+            );
+
+            // Add migration-based suggestions
+            migrationSuggestions.forEach(mig => {
+                searchSuggestions.push({
+                    type: mig.type,
+                    description: mig.tip,
+                    searchTerms: mig.locations,
+                    tip: `Consider records from: ${mig.locations.join(', ')}`
+                });
+            });
+
+            // === Records to Search ===
+            const recordsToSearch = generateRecordSuggestions(
+                birthYear, birthYearRange, deathYear, deathYearRange,
+                birthLocation, locationComponents, isHawaiian, origin, detectedEthnicity
+            );
+
+            // Calculate overall confidence
+            const confidence = (surnameConfidence + locationConfidence + 0.7) / 3;
+
+            return {
+                relationship,
+                confidence,
+                surname,
+                surnameConfidence,
+                alternateSurnames,
+                maidenNameAlternatives,
+                givenNames: givenNames.slice(0, 10),
+                birthYear,
+                birthYearRange,
+                deathYear,
+                deathYearRange,
+                lifespan,
+                birthLocation,
+                locationConfidence,
+                locationComponents,
+                alternateLocations,
+                migrationSuggestions,
+                occupation,
+                occupationConfidence,
+                alternateOccupations,
+                origin,
+                originConfidence,
+                detectedEthnicity,
+                reasoning,
+                searchSuggestions,
+                recordsToSearch
+            };
+        }
+
+        // Generate spelling variants for surnames
+        function generateSpellingVariants(surname) {
+            const variants = new Set();
+            const s = surname.toLowerCase();
+
+            // Common substitutions
+            const substitutions = [
+                [/ey$/, 'y'], [/y$/, 'ey'], [/y$/, 'ie'],
+                [/son$/, 'sen'], [/sen$/, 'son'],
+                [/ck$/, 'k'], [/k$/, 'ck'],
+                [/mann$/, 'man'], [/man$/, 'mann'],
+                [/er$/, 'or'], [/or$/, 'er'],
+                [/ei/, 'ie'], [/ie/, 'ei'],
+                [/ph/, 'f'], [/f/, 'ph'],
+                [/sch/, 'sh'], [/sh/, 'sch'],
+                [/c([ei])/, 's$1'], [/s([ei])/, 'c$1'],
+            ];
+
+            substitutions.forEach(([pattern, replacement]) => {
+                const variant = s.replace(pattern, replacement);
+                if (variant !== s) {
+                    variants.add(variant.charAt(0).toUpperCase() + variant.slice(1));
+                }
+            });
+
+            return [...variants].slice(0, 4);
+        }
+
+        // Generate search suggestions based on predicted attributes
+        function generateSearchSuggestions(birthYear, birthYearRange, location, locComponents,
+                                          surname, alternateSurnames, relationship, person, spouse) {
+            const suggestions = [];
+            const childName = `${person.givenName || ''} ${person.surname || ''}`.trim();
+
+            // Marriage records suggestion
+            if (relationship === 'mother' || relationship === 'father') {
+                const marriageYear = person.birthYear ? person.birthYear - 2 : birthYear + 25;
+                suggestions.push({
+                    type: 'Marriage Records',
+                    description: `Search for marriage of parents around ${marriageYear - 5} to ${marriageYear + 2}`,
+                    searchTerms: spouse ?
+                        [`${spouse.givenName || ''} ${spouse.surname || ''}`.trim(), location] :
+                        [surname, location],
+                    tip: relationship === 'mother' ?
+                        "Marriage records often list bride's maiden name and parents" :
+                        "Look for groom's parents listed as witnesses"
+                });
+            }
+
+            // Birth record of child
+            if (person.birthYear) {
+                suggestions.push({
+                    type: 'Child Birth Record',
+                    description: `Find birth record of ${childName} (${person.birthYear})`,
+                    searchTerms: [childName, location, person.birthYear],
+                    tip: "Birth certificates often list parents' full names, ages, and birthplaces"
+                });
+            }
+
+            // Census records
+            if (birthYear >= 1790) {
+                const censusYears = getCensusYears(birthYear, person.birthYear || birthYear + 30, location);
+                if (censusYears.length > 0) {
+                    suggestions.push({
+                        type: 'Census Records',
+                        description: `Search ${censusYears.slice(0, 3).join(', ')} census`,
+                        searchTerms: [surname, locComponents.county || locComponents.city || location],
+                        tip: `Look for ${surname} family with children including ${person.givenName || 'child'}`
+                    });
+                }
+            }
+
+            // Surname variants
+            if (alternateSurnames && alternateSurnames.length > 0) {
+                suggestions.push({
+                    type: 'Spelling Variations',
+                    description: `Try alternate spellings: ${alternateSurnames.join(', ')}`,
+                    searchTerms: alternateSurnames,
+                    tip: "Historical records often have inconsistent spelling"
+                });
+            }
+
+            return suggestions;
+        }
+
+        // Get relevant census years for a location and time period
+        function getCensusYears(birthYear, childBirth, location) {
+            const locLower = location.toLowerCase();
+            let censusYears = [];
+
+            // US Census years
+            if (locLower.includes('usa') || locLower.includes('united states') ||
+                locLower.includes('hawaii') || locLower.match(/\b[a-z]{2}\s*,?\s*usa?\b/i) ||
+                ['alabama','alaska','arizona','arkansas','california','colorado','connecticut',
+                 'delaware','florida','georgia','hawaii','idaho','illinois','indiana','iowa',
+                 'kansas','kentucky','louisiana','maine','maryland','massachusetts','michigan',
+                 'minnesota','mississippi','missouri','montana','nebraska','nevada','new hampshire',
+                 'new jersey','new mexico','new york','north carolina','north dakota','ohio',
+                 'oklahoma','oregon','pennsylvania','rhode island','south carolina','south dakota',
+                 'tennessee','texas','utah','vermont','virginia','washington','west virginia',
+                 'wisconsin','wyoming'].some(state => locLower.includes(state))) {
+
+                const usCensus = [1790, 1800, 1810, 1820, 1830, 1840, 1850, 1860, 1870, 1880, 1890, 1900, 1910, 1920, 1930, 1940, 1950];
+                censusYears = usCensus.filter(y => y >= birthYear - 5 && y <= childBirth + 20);
+            }
+
+            // UK Census
+            if (locLower.includes('england') || locLower.includes('wales') ||
+                locLower.includes('scotland') || locLower.includes('britain') ||
+                locLower.includes('uk') || locLower.includes('united kingdom')) {
+                const ukCensus = [1841, 1851, 1861, 1871, 1881, 1891, 1901, 1911, 1921, 1939];
+                censusYears = ukCensus.filter(y => y >= birthYear - 5 && y <= childBirth + 20);
+            }
+
+            return censusYears;
+        }
+
+        // Generate record type suggestions
+        function generateRecordSuggestions(birthYear, birthRange, deathYear, deathRange,
+                                          location, locComponents, isHawaiian, origin, detectedEthnicity) {
+            const records = [];
+            const locLower = location.toLowerCase();
+
+            // Vital records
+            records.push({
+                type: 'Birth Records',
+                years: `${birthRange[0]}-${birthRange[1]}`,
+                locations: [locComponents.city, locComponents.county, locComponents.state].filter(Boolean),
+                sources: ['County clerk', 'State archives', 'Church records']
+            });
+
+            records.push({
+                type: 'Death Records',
+                years: `${deathRange[0]}-${deathRange[1]}`,
+                locations: [locComponents.city, locComponents.county, locComponents.state].filter(Boolean),
+                sources: ['County clerk', 'Find A Grave', 'Obituaries']
+            });
+
+            // Hawaiian-specific records
+            if (isHawaiian) {
+                records.push({
+                    type: 'Hawaiian Records',
+                    years: `${birthRange[0]}-${deathRange[1]}`,
+                    locations: ['Hawaii State Archives', 'Bishop Museum'],
+                    sources: ['Hawaiian vital records', 'Missionary records', 'Land records (Mahele)']
+                });
+
+                // Add plantation records for Hawaii
+                if (birthYear >= 1850 && birthYear <= 1950) {
+                    records.push({
+                        type: 'Plantation Records',
+                        years: `${birthYear}-${Math.min(1950, deathYear)}`,
+                        locations: ['Hawaii State Archives', 'Plantation museums'],
+                        sources: ['Plantation employment records', 'Contract labor records', 'Camp registers']
+                    });
+                }
+            }
+
+            // Ethnicity-specific records
+            if (detectedEthnicity || origin) {
+                const ethnicity = detectedEthnicity || origin?.toLowerCase();
+
+                if (ethnicity === 'irish') {
+                    records.push({
+                        type: 'Irish Records',
+                        years: `${birthRange[0]}-${birthRange[1]}`,
+                        locations: ['Ireland', 'National Archives of Ireland'],
+                        sources: ['Irish civil registration (1864+)', 'Catholic parish records', 'Griffith\'s Valuation', 'Tithe Applotment Books']
+                    });
+                } else if (ethnicity === 'german') {
+                    records.push({
+                        type: 'German Records',
+                        years: `${birthRange[0]}-${birthRange[1]}`,
+                        locations: ['Germany', 'Ancestry German collections'],
+                        sources: ['German church books (Kirchenbücher)', 'Civil registration', 'Emigration lists']
+                    });
+                } else if (ethnicity === 'italian') {
+                    records.push({
+                        type: 'Italian Records',
+                        years: `${birthRange[0]}-${birthRange[1]}`,
+                        locations: ['Italy', 'Antenati portal'],
+                        sources: ['Italian civil records (1866+)', 'Church records', 'Emigration records']
+                    });
+                } else if (ethnicity === 'polish') {
+                    records.push({
+                        type: 'Polish Records',
+                        years: `${birthRange[0]}-${birthRange[1]}`,
+                        locations: ['Poland', 'Geneteka', 'Szukajwarchiwach'],
+                        sources: ['Polish vital records', 'Church records (Catholic/Jewish)', 'Partition-era records']
+                    });
+                } else if (ethnicity === 'jewish') {
+                    records.push({
+                        type: 'Jewish Records',
+                        years: `${birthRange[0]}-${birthRange[1]}`,
+                        locations: ['JewishGen', 'Yad Vashem'],
+                        sources: ['Jewish vital records', 'Synagogue records', 'Yizkor books', 'Holocaust records']
+                    });
+                } else if (ethnicity === 'chinese') {
+                    records.push({
+                        type: 'Chinese-American Records',
+                        years: `${birthYear + 15}-${deathYear}`,
+                        locations: ['National Archives', 'Angel Island'],
+                        sources: ['Chinese Exclusion Act files', 'Immigration case files', 'Merchant records']
+                    });
+                } else if (ethnicity === 'japanese') {
+                    records.push({
+                        type: 'Japanese-American Records',
+                        years: `${birthYear + 15}-${deathYear}`,
+                        locations: ['National Archives', 'Japanese American National Museum'],
+                        sources: ['Immigration records', 'Koseki (family registers)', 'WWII internment records']
+                    });
+                } else if (ethnicity === 'portuguese') {
+                    records.push({
+                        type: 'Portuguese Records',
+                        years: `${birthRange[0]}-${birthRange[1]}`,
+                        locations: ['Portugal', 'Azores', 'Madeira'],
+                        sources: ['Portuguese civil registration', 'Catholic parish records', 'Emigration records']
+                    });
+                } else if (ethnicity === 'scandinavian') {
+                    records.push({
+                        type: 'Scandinavian Records',
+                        years: `${birthRange[0]}-${birthRange[1]}`,
+                        locations: ['Sweden', 'Norway', 'Denmark'],
+                        sources: ['Church books', 'Emigration records', 'Farm records (gårdshistorie)']
+                    });
+                }
+            }
+
+            // Immigration records
+            if (birthYear < 1920) {
+                const immigrationPeriod = birthYear < 1850 ?
+                    'Ship passenger lists, naturalization records' :
+                    'Ellis Island, Castle Garden, port records';
+                records.push({
+                    type: 'Immigration Records',
+                    years: `${birthYear + 15}-${birthYear + 40}`,
+                    locations: ['Ports of entry', 'National Archives'],
+                    sources: [immigrationPeriod, 'Naturalization papers', 'Ship manifests']
+                });
+            }
+
+            // Military records
+            const militaryConflicts = [];
+            if (birthYear >= 1820 && birthYear <= 1845) militaryConflicts.push('Civil War (1861-1865)');
+            if (birthYear >= 1870 && birthYear <= 1900) militaryConflicts.push('WWI (1917-1918)');
+            if (birthYear >= 1900 && birthYear <= 1925) militaryConflicts.push('WWII (1941-1945)');
+            if (birthYear >= 1925 && birthYear <= 1935) militaryConflicts.push('Korean War (1950-1953)');
+
+            if (militaryConflicts.length > 0) {
+                records.push({
+                    type: 'Military Records',
+                    years: militaryConflicts.join(', '),
+                    locations: ['National Archives', 'Fold3'],
+                    sources: ['Draft cards', 'Service records', 'Pension files', 'Veterans Administration']
+                });
+            }
+
+            // Church records - specify denomination if known
+            let churchSources = ['Baptism records', 'Marriage registers', 'Burial records'];
+            if (detectedEthnicity === 'irish' || detectedEthnicity === 'italian' || detectedEthnicity === 'polish') {
+                churchSources = ['Catholic parish records', 'Baptism/Marriage/Burial registers'];
+            } else if (detectedEthnicity === 'jewish') {
+                churchSources = ['Synagogue records', 'Mohel records', 'Chevra kadisha records'];
+            } else if (detectedEthnicity === 'scandinavian' || detectedEthnicity === 'german') {
+                churchSources = ['Lutheran church records', 'Church books'];
+            }
+
+            records.push({
+                type: 'Church Records',
+                years: `${birthRange[0]}-${deathRange[1]}`,
+                locations: [locComponents.city || 'Local churches', locComponents.county].filter(Boolean),
+                sources: churchSources
+            });
+
+            // Land and property records
+            if (birthYear < 1950) {
+                records.push({
+                    type: 'Land & Property Records',
+                    years: `${birthYear + 20}-${deathYear}`,
+                    locations: [locComponents.county, locComponents.state].filter(Boolean),
+                    sources: ['Deed records', 'Tax records', 'Homestead records', 'Probate/Wills']
+                });
+            }
+
+            // Newspaper records
+            records.push({
+                type: 'Newspaper Records',
+                years: `${birthYear}-${deathYear}`,
+                locations: ['Newspapers.com', 'Chronicling America', 'Local libraries'],
+                sources: ['Birth announcements', 'Marriage notices', 'Obituaries', 'Local news mentions']
+            });
+
+            return records;
         }
 
         // ============================================================================
@@ -926,13 +1803,17 @@
             document.getElementById('loadingOverlay').classList.remove('active');
         }
 
+        function escapeHtml(text) {
+            if (!text) return '';
+            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+        }
+
         function renderPersonList() {
             const container = document.getElementById('personList');
             const searchTerm = document.getElementById('searchInput').value.toLowerCase();
 
             let filtered = Array.from(individuals.values());
 
-            // Apply search
             if (searchTerm) {
                 filtered = filtered.filter(p => {
                     const name = `${p.givenName} ${p.surname}`.toLowerCase();
@@ -940,14 +1821,12 @@
                 });
             }
 
-            // Apply filter
             if (currentFilter === 'missing') {
                 filtered = filtered.filter(p => !p.father || !p.mother);
             } else if (currentFilter === 'complete') {
                 filtered = filtered.filter(p => p.father && p.mother);
             }
 
-            // Sort by birth year
             filtered.sort((a, b) => (b.birthYear || 0) - (a.birthYear || 0));
 
             container.innerHTML = filtered.slice(0, 200).map(p => {
@@ -970,7 +1849,6 @@
                 `;
             }).join('');
 
-            // Update stats
             const totalMissing = Array.from(individuals.values()).filter(p => !p.father || !p.mother).length;
             document.getElementById('statTotal').textContent = individuals.size;
             document.getElementById('statMissing').textContent = totalMissing;
@@ -980,14 +1858,11 @@
             selectedPersonId = personId;
             renderPersonList();
             renderFanChart(personId);
-            renderPedigree(personId);
             renderDetails(personId);
         }
 
         function renderDetails(personId) {
             const person = individuals.get(personId);
-            const pred = predictions.get(personId) || {};
-
             if (!person) return;
 
             const name = `${person.givenName || ''} ${person.surname || ''}`.trim() || personId;
@@ -1004,82 +1879,31 @@
             // Basic info
             html += `<div class="details-section">
                 <h3>Information</h3>
-                <div class="info-row">
-                    <span class="info-label">Gender</span>
-                    <span>${person.gender === 'M' ? 'Male' : person.gender === 'F' ? 'Female' : 'Unknown'}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Spouses</span>
-                    <span>${person.spouses.length}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Children</span>
-                    <span>${person.children.length}</span>
-                </div>
-                <div class="info-row">
-                    <span class="info-label">Siblings</span>
-                    <span>${person.siblings.length}</span>
-                </div>
+                <div class="info-row"><span class="info-label">Gender</span><span>${person.gender === 'M' ? 'Male' : person.gender === 'F' ? 'Female' : 'Unknown'}</span></div>
+                <div class="info-row"><span class="info-label">Spouses</span><span>${person.spouses.length}</span></div>
+                <div class="info-row"><span class="info-label">Children</span><span>${person.children.length}</span></div>
+                <div class="info-row"><span class="info-label">Siblings</span><span>${person.siblings.length}</span></div>
             </div>`;
 
-            // Predictions
+            // AI-Generated Predictions
             if (!person.father || !person.mother) {
-                html += `<div class="details-section"><h3>Predictions</h3>`;
+                html += `<div class="details-section"><h3>🤖 AI-Generated Ancestors</h3>`;
 
                 if (!person.father) {
-                    const confidence = pred.missingFather || 0.9;
-                    const candidates = findCandidates(personId, 'father');
-
-                    html += `<div class="prediction-card">
-                        <h4>⚠️ Missing Father</h4>
-                        <div>Confidence: ${(confidence * 100).toFixed(0)}%</div>
-                        <div class="confidence-bar">
-                            <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
-                        </div>
-                        ${candidates.length > 0 ? `
-                            <div class="candidate-list">
-                                <strong>Possible matches:</strong>
-                                ${candidates.map(c => `
-                                    <div class="candidate-item" onclick="selectPerson('${c.id}')">
-                                        <div class="candidate-name">${escapeHtml(c.name)}</div>
-                                        <div class="candidate-info">${c.birthYear ? `b. ${c.birthYear}` : ''} ${c.reasons ? `— ${c.reasons}` : ''}</div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        ` : '<p style="opacity: 0.6; margin-top: 10px;">No candidates found</p>'}
-                    </div>`;
+                    const pred = predictAncestorAttributes(personId, 'father');
+                    html += renderPredictionCard(pred, 'Father');
                 }
 
                 if (!person.mother) {
-                    const confidence = pred.missingMother || 0.9;
-                    const candidates = findCandidates(personId, 'mother');
-
-                    html += `<div class="prediction-card">
-                        <h4>⚠️ Missing Mother</h4>
-                        <div>Confidence: ${(confidence * 100).toFixed(0)}%</div>
-                        <div class="confidence-bar">
-                            <div class="confidence-fill" style="width: ${confidence * 100}%"></div>
-                        </div>
-                        ${candidates.length > 0 ? `
-                            <div class="candidate-list">
-                                <strong>Possible matches:</strong>
-                                ${candidates.map(c => `
-                                    <div class="candidate-item" onclick="selectPerson('${c.id}')">
-                                        <div class="candidate-name">${escapeHtml(c.name)}</div>
-                                        <div class="candidate-info">${c.birthYear ? `b. ${c.birthYear}` : ''} ${c.reasons ? `— ${c.reasons}` : ''}</div>
-                                    </div>
-                                `).join('')}
-                            </div>
-                        ` : '<p style="opacity: 0.6; margin-top: 10px;">No candidates found</p>'}
-                    </div>`;
+                    const pred = predictAncestorAttributes(personId, 'mother');
+                    html += renderPredictionCard(pred, 'Mother');
                 }
 
                 html += `</div>`;
             }
 
-            // Family
-            html += `<div class="details-section"><h3>Family</h3>`;
-
+            // Known Family
+            html += `<div class="details-section"><h3>Known Family</h3>`;
             if (person.father) {
                 const father = individuals.get(person.father);
                 const fatherName = father ? `${father.givenName || ''} ${father.surname || ''}`.trim() : person.father;
@@ -1088,7 +1912,6 @@
                     <span style="cursor: pointer; color: #4ecdc4;" onclick="selectPerson('${person.father}')">${escapeHtml(fatherName)}</span>
                 </div>`;
             }
-
             if (person.mother) {
                 const mother = individuals.get(person.mother);
                 const motherName = mother ? `${mother.givenName || ''} ${mother.surname || ''}`.trim() : person.mother;
@@ -1097,10 +1920,132 @@
                     <span style="cursor: pointer; color: #4ecdc4;" onclick="selectPerson('${person.mother}')">${escapeHtml(motherName)}</span>
                 </div>`;
             }
-
             html += `</div>`;
 
             document.getElementById('detailsContent').innerHTML = html;
+        }
+
+        function renderPredictionCard(pred, title) {
+            if (!pred) return '';
+
+            return `
+                <div class="prediction-card">
+                    <h4><span class="icon"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg></span> Predicted ${title} - Research Guide</h4>
+                    <div class="confidence-bar" style="margin-bottom: 15px;">
+                        <div style="font-size: 11px; opacity: 0.7; margin-bottom: 4px;">Overall confidence: ${Math.round(pred.confidence * 100)}%</div>
+                        <div style="background: rgba(255,255,255,0.1); border-radius: 4px; height: 6px; overflow: hidden;">
+                            <div style="background: linear-gradient(90deg, #4ecdc4, #44a08d); height: 100%; width: ${pred.confidence * 100}%;"></div>
+                        </div>
+                    </div>
+
+                    <div class="predicted-attribute">
+                        <div class="label">Surname to Search</div>
+                        <div class="value">${escapeHtml(pred.surname)}</div>
+                        ${pred.alternateSurnames && pred.alternateSurnames.length > 0 ? `
+                            <div class="alternate-values">Spelling variants: ${pred.alternateSurnames.map(s => escapeHtml(s)).join(', ')}</div>
+                        ` : ''}
+                        ${pred.maidenNameAlternatives && pred.maidenNameAlternatives.length > 0 ? `
+                            <div class="alternate-values">Other possible maiden names: ${pred.maidenNameAlternatives.map(s => escapeHtml(s)).join(', ')}</div>
+                        ` : ''}
+                        <div class="confidence">${Math.round(pred.surnameConfidence * 100)}% confidence</div>
+                    </div>
+
+                    <div class="predicted-attribute">
+                        <div class="label">Suggested Given Names</div>
+                        <div class="name-suggestions">
+                            ${pred.givenNames.slice(0, 4).map(n => `<span class="name-chip" style="background: rgba(78, 205, 196, 0.3);">${escapeHtml(n)}</span>`).join('')}
+                            ${pred.givenNames.slice(4, 10).map(n => `<span class="name-chip">${escapeHtml(n)}</span>`).join('')}
+                        </div>
+                        <div class="search-tip">First 4 names are from family patterns, others are era/region typical</div>
+                    </div>
+
+                    <div class="predicted-attribute">
+                        <div class="label">Birth Year to Search</div>
+                        <div class="value">~${pred.birthYear}</div>
+                        <div class="range">Search range: ${pred.birthYearRange[0]} - ${pred.birthYearRange[1]}</div>
+                    </div>
+
+                    <div class="predicted-attribute">
+                        <div class="label">Location to Search</div>
+                        <div class="value">${escapeHtml(pred.birthLocation)}</div>
+                        ${pred.alternateLocations && pred.alternateLocations.length > 0 ? `
+                            <div class="alternate-values">Also check: ${pred.alternateLocations.map(l => escapeHtml(l)).join('; ')}</div>
+                        ` : ''}
+                        <div class="confidence">${Math.round(pred.locationConfidence * 100)}% confidence</div>
+                    </div>
+
+                    ${pred.migrationSuggestions && pred.migrationSuggestions.length > 0 ? `
+                        <div class="predicted-attribute" style="background: rgba(255, 159, 67, 0.15);">
+                            <div class="label">Migration Pattern Detected</div>
+                            ${pred.migrationSuggestions.map(m => `
+                                <div class="value" style="font-size: 13px;">${escapeHtml(m.type)}</div>
+                                <div class="search-tip">${escapeHtml(m.tip)}</div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    <div class="predicted-attribute">
+                        <div class="label">Death Year to Search</div>
+                        <div class="value">~${pred.deathYear}</div>
+                        <div class="range">Search range: ${pred.deathYearRange[0]} - ${pred.deathYearRange[1]} (est. ${pred.lifespan} year lifespan)</div>
+                    </div>
+
+                    ${pred.occupation ? `
+                        <div class="predicted-attribute">
+                            <div class="label">Likely Occupation</div>
+                            <div class="value">${escapeHtml(pred.occupation)}</div>
+                            ${pred.alternateOccupations && pred.alternateOccupations.length > 0 ? `
+                                <div class="alternate-values">Also consider: ${pred.alternateOccupations.slice(0, 3).map(o => escapeHtml(o)).join(', ')}</div>
+                            ` : ''}
+                            <div class="search-tip">Check city directories, census occupations, trade records</div>
+                        </div>
+                    ` : ''}
+
+                    ${pred.origin ? `
+                        <div class="predicted-attribute">
+                            <div class="label">Ethnic Origin</div>
+                            <div class="value">${escapeHtml(pred.origin)}</div>
+                            <div class="confidence">${Math.round(pred.originConfidence * 100)}% confidence</div>
+                            ${pred.detectedEthnicity ? `
+                                <div class="search-tip">Detected from surname pattern - search ${pred.detectedEthnicity} immigration & community records</div>
+                            ` : `
+                                <div class="search-tip">Consider immigration records, ethnic newspapers, community records</div>
+                            `}
+                        </div>
+                    ` : ''}
+
+                    ${pred.searchSuggestions && pred.searchSuggestions.length > 0 ? `
+                        <div class="search-suggestions">
+                            <div class="section-header">Search Strategies</div>
+                            ${pred.searchSuggestions.slice(0, 6).map(s => `
+                                <div class="search-suggestion-item">
+                                    <div class="suggestion-type">${escapeHtml(s.type)}</div>
+                                    <div class="suggestion-desc">${escapeHtml(s.description)}</div>
+                                    <div class="suggestion-tip">${escapeHtml(s.tip)}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    ${pred.recordsToSearch && pred.recordsToSearch.length > 0 ? `
+                        <div class="records-to-search">
+                            <div class="section-header">Records to Search</div>
+                            ${pred.recordsToSearch.slice(0, 6).map(r => `
+                                <div class="record-item">
+                                    <div class="record-type">${escapeHtml(r.type)}</div>
+                                    <div class="record-years">Years: ${escapeHtml(r.years)}</div>
+                                    <div class="record-sources">${r.sources.map(s => escapeHtml(s)).join(' • ')}</div>
+                                </div>
+                            `).join('')}
+                        </div>
+                    ` : ''}
+
+                    <div class="reasoning-list">
+                        <div class="label" style="margin-bottom: 6px;">How we estimated this (${pred.reasoning.length} factors):</div>
+                        ${pred.reasoning.map(r => `<div class="reasoning-item">${escapeHtml(r)}</div>`).join('')}
+                    </div>
+                </div>
+            `;
         }
 
         // ============================================================================
@@ -1110,20 +2055,14 @@
             const svg = d3.select('#fanchart');
             svg.selectAll('*').remove();
 
-            const width = 700;
-            const height = 700;
-            const centerX = width / 2;
-            const centerY = height / 2;
-            const innerRadius = 50;
-            const radiusStep = 55;
+            const width = 700, height = 700;
+            const centerX = width / 2, centerY = height / 2;
+            const innerRadius = 50, radiusStep = 55;
             const maxGenerations = 5;
 
             svg.attr('width', width).attr('height', height);
+            const g = svg.append('g').attr('transform', `translate(${centerX}, ${centerY})`);
 
-            const g = svg.append('g')
-                .attr('transform', `translate(${centerX}, ${centerY})`);
-
-            // Build ancestor tree
             const nodes = [];
             const queue = [[rootId, 0, 0]];
             const visited = new Set();
@@ -1144,7 +2083,7 @@
                     generation: gen,
                     position: pos,
                     isMissing,
-                    candidates: []
+                    prediction: null
                 });
 
                 if (person && gen < maxGenerations) {
@@ -1155,32 +2094,32 @@
                     if (person.father) {
                         queue.push([person.father, nextGen, fatherPos]);
                     } else {
-                        const missingId = `missing_father_${currentId}`;
+                        const pred = predictAncestorAttributes(currentId, 'father');
                         nodes.push({
-                            id: missingId,
-                            name: 'Unknown Father',
-                            birthYear: person.birthYear ? person.birthYear - 30 : null,
+                            id: `missing_father_${currentId}`,
+                            name: pred ? `${pred.givenNames[0] || '?'} ${pred.surname}` : 'Unknown Father',
+                            birthYear: pred?.birthYear,
                             gender: 'M',
                             generation: nextGen,
                             position: fatherPos,
                             isMissing: true,
-                            candidates: findCandidates(currentId, 'father')
+                            prediction: pred
                         });
                     }
 
                     if (person.mother) {
                         queue.push([person.mother, nextGen, motherPos]);
                     } else {
-                        const missingId = `missing_mother_${currentId}`;
+                        const pred = predictAncestorAttributes(currentId, 'mother');
                         nodes.push({
-                            id: missingId,
-                            name: 'Unknown Mother',
-                            birthYear: person.birthYear ? person.birthYear - 28 : null,
+                            id: `missing_mother_${currentId}`,
+                            name: pred ? `${pred.givenNames[0] || '?'} ${pred.surname}` : 'Unknown Mother',
+                            birthYear: pred?.birthYear,
                             gender: 'F',
                             generation: nextGen,
                             position: motherPos,
                             isMissing: true,
-                            candidates: findCandidates(currentId, 'mother')
+                            prediction: pred
                         });
                     }
                 }
@@ -1232,14 +2171,11 @@
                         .attr('stroke-width', node.isMissing ? 2 : 1)
                         .attr('stroke-dasharray', node.isMissing ? '5,3' : 'none');
 
-                    // Label
                     if (genNum <= 3) {
                         const midAngle = (startAngle + endAngle) / 2;
                         const labelRadius = (inner + outer) / 2;
                         const labelX = Math.cos(midAngle) * labelRadius;
                         const labelY = Math.sin(midAngle) * labelRadius;
-
-                        const displayName = node.name.length > 12 ? node.name.substring(0, 10) + '...' : node.name;
 
                         arcGroup.append('text')
                             .attr('class', 'arc-label')
@@ -1248,10 +2184,9 @@
                             .attr('text-anchor', 'middle')
                             .attr('dominant-baseline', 'middle')
                             .attr('transform', `rotate(${midAngle * 180 / Math.PI + 90}, ${labelX}, ${labelY})`)
-                            .text(displayName);
+                            .text(node.name.length > 12 ? node.name.substring(0, 10) + '...' : node.name);
                     }
 
-                    // Interactions
                     arcGroup.on('click', () => {
                         if (!node.isMissing && individuals.has(node.id)) {
                             selectPerson(node.id);
@@ -1260,15 +2195,20 @@
 
                     arcGroup.on('mouseover', (event) => {
                         let html = `<strong>${escapeHtml(node.name)}</strong>`;
-                        if (node.birthYear) html += `<br>b. ${node.birthYear}`;
-                        if (node.isMissing) {
-                            html += `<br><span style="color: #ff6b6b;">⚠️ Missing Ancestor</span>`;
-                            if (node.candidates.length > 0) {
-                                html += `<br><br><strong>Possible matches:</strong>`;
-                                node.candidates.forEach(c => {
-                                    html += `<br>• ${escapeHtml(c.name)}${c.birthYear ? ` (b. ${c.birthYear})` : ''}`;
-                                });
+                        if (node.birthYear) html += `<br>b. ~${node.birthYear}`;
+
+                        if (node.isMissing && node.prediction) {
+                            const p = node.prediction;
+                            html += `<br><br><span style="color: #ff9f43;">Research Guide for Missing Ancestor</span>`;
+                            html += `<br><strong>Search Surname:</strong> ${escapeHtml(p.surname)}`;
+                            if (p.alternateSurnames && p.alternateSurnames.length > 0) {
+                                html += `<br><span style="color: #4ecdc4; font-size: 11px;">Also try: ${p.alternateSurnames.join(', ')}</span>`;
                             }
+                            html += `<br><strong>Birth Year:</strong> ~${p.birthYear} <span style="opacity:0.7">(${p.birthYearRange[0]}-${p.birthYearRange[1]})</span>`;
+                            html += `<br><strong>Location:</strong> ${escapeHtml(p.birthLocation)}`;
+                            if (p.origin) html += `<br><strong>Origin:</strong> ${escapeHtml(p.origin)}`;
+                            if (p.occupation) html += `<br><strong>Occupation:</strong> ${escapeHtml(p.occupation)}`;
+                            html += `<br><br><span style="color: #4ecdc4; font-size: 11px;">Click person in sidebar for full research guide</span>`;
                         }
 
                         const tooltip = document.getElementById('tooltip');
@@ -1311,127 +2251,23 @@
         }
 
         // ============================================================================
-        // Pedigree View
-        // ============================================================================
-        function renderPedigree(rootId) {
-            const container = document.getElementById('pedigreeContainer');
-            const maxGen = 4;
-
-            let html = '<div class="pedigree-tree">';
-
-            // Build generations
-            for (let gen = 0; gen <= maxGen; gen++) {
-                const numSlots = Math.pow(2, gen);
-                html += `<div class="pedigree-generation" style="min-height: ${numSlots * 80}px;">`;
-
-                const ancestors = getAncestorsAtGeneration(rootId, gen);
-
-                for (let pos = 0; pos < numSlots; pos++) {
-                    const ancestor = ancestors[pos];
-
-                    if (ancestor) {
-                        const person = individuals.get(ancestor.id);
-                        const isMissing = ancestor.isMissing;
-
-                        if (person || isMissing) {
-                            const name = person ? `${person.givenName || ''} ${person.surname || ''}`.trim() : 'Unknown';
-                            const gender = person?.gender || ancestor.gender;
-                            const dates = person?.birthYear ? `b. ${person.birthYear}${person.deathYear ? ` - d. ${person.deathYear}` : ''}` : '';
-
-                            html += `
-                                <div class="pedigree-person ${gender === 'M' ? 'male' : 'female'} ${isMissing ? 'missing' : ''}"
-                                     onclick="${!isMissing && person ? `selectPerson('${ancestor.id}')` : ''}">
-                                    <div class="name">${escapeHtml(name)}</div>
-                                    <div class="dates">${dates}</div>
-                                    ${isMissing ? '<div class="prediction-badge">⚠️ Predicted Missing</div>' : ''}
-                                </div>
-                            `;
-                        } else {
-                            html += `<div class="pedigree-person" style="opacity: 0.3; border: 1px dashed rgba(255,255,255,0.2);">
-                                <div class="name">—</div>
-                            </div>`;
-                        }
-                    } else {
-                        html += `<div class="pedigree-person" style="visibility: hidden;">
-                            <div class="name">—</div>
-                        </div>`;
-                    }
-                }
-
-                html += '</div>';
-            }
-
-            html += '</div>';
-            container.innerHTML = html;
-        }
-
-        function getAncestorsAtGeneration(rootId, targetGen) {
-            const result = [];
-            const numSlots = Math.pow(2, targetGen);
-
-            function traverse(personId, gen, pos, expectedGender) {
-                if (gen === targetGen) {
-                    result[pos] = {
-                        id: personId,
-                        isMissing: !personId || !individuals.has(personId),
-                        gender: expectedGender
-                    };
-                    return;
-                }
-
-                const person = individuals.get(personId);
-                if (!person) {
-                    // Fill remaining slots with missing
-                    const slotsPerAncestor = Math.pow(2, targetGen - gen);
-                    for (let i = 0; i < slotsPerAncestor; i++) {
-                        const subPos = pos * slotsPerAncestor + i;
-                        result[subPos] = { id: null, isMissing: true, gender: i % 2 === 0 ? 'M' : 'F' };
-                    }
-                    return;
-                }
-
-                traverse(person.father, gen + 1, pos * 2, 'M');
-                traverse(person.mother, gen + 1, pos * 2 + 1, 'F');
-            }
-
-            traverse(rootId, 0, 0, null);
-            return result;
-        }
-
-        // ============================================================================
         // Event Handlers
         // ============================================================================
-        function escapeHtml(text) {
-            if (!text) return '';
-            return text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
-        }
-
         function resetApp() {
             individuals.clear();
             families.clear();
-            predictions.clear();
             selectedPersonId = null;
-
             document.getElementById('uploadSection').style.display = 'flex';
             document.getElementById('appContainer').classList.remove('active');
             document.getElementById('headerActions').style.display = 'none';
         }
 
-        // File upload handling
         const uploadBox = document.getElementById('uploadBox');
         const fileInput = document.getElementById('fileInput');
 
         uploadBox.addEventListener('click', () => fileInput.click());
-
-        uploadBox.addEventListener('dragover', (e) => {
-            e.preventDefault();
-            uploadBox.classList.add('dragover');
-        });
-
-        uploadBox.addEventListener('dragleave', () => {
-            uploadBox.classList.remove('dragover');
-        });
-
+        uploadBox.addEventListener('dragover', (e) => { e.preventDefault(); uploadBox.classList.add('dragover'); });
+        uploadBox.addEventListener('dragleave', () => uploadBox.classList.remove('dragover'));
         uploadBox.addEventListener('drop', (e) => {
             e.preventDefault();
             uploadBox.classList.remove('dragover');
@@ -1449,7 +2285,6 @@
 
             try {
                 const text = await file.text();
-
                 showLoading('Parsing GEDCOM data...');
                 await new Promise(r => setTimeout(r, 100));
 
@@ -1457,34 +2292,32 @@
                 individuals = result.individuals;
                 families = result.families;
 
+                showLoading('Analyzing family patterns...');
+                await new Promise(r => setTimeout(r, 100));
+
+                // Analyze family patterns for improved predictions
+                analyzeFamilyPatterns();
+
                 showLoading('Generating predictions...');
                 await new Promise(r => setTimeout(r, 100));
 
-                generatePredictions();
-
-                // Show app
                 document.getElementById('uploadSection').style.display = 'none';
                 document.getElementById('appContainer').classList.add('active');
                 document.getElementById('headerActions').style.display = 'flex';
 
                 renderPersonList();
 
-                // Select first person with missing ancestors
                 let firstPerson = null;
                 for (const [id, person] of individuals) {
-                    if (!person.father || !person.mother) {
-                        if (person.birthYear && person.birthYear > 1900) {
-                            firstPerson = id;
-                            break;
-                        }
+                    if ((!person.father || !person.mother) && person.birthYear && person.birthYear > 1900) {
+                        firstPerson = id;
+                        break;
                     }
                 }
                 if (!firstPerson) firstPerson = individuals.keys().next().value;
-
                 if (firstPerson) selectPerson(firstPerson);
 
                 hideLoading();
-
             } catch (error) {
                 console.error(error);
                 alert('Error processing file: ' + error.message);
@@ -1492,10 +2325,8 @@
             }
         }
 
-        // Search
         document.getElementById('searchInput').addEventListener('input', renderPersonList);
 
-        // Filter tabs
         document.querySelectorAll('.filter-tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.filter-tab').forEach(t => t.classList.remove('active'));
@@ -1505,7 +2336,6 @@
             });
         });
 
-        // View tabs
         document.querySelectorAll('.tab').forEach(tab => {
             tab.addEventListener('click', () => {
                 document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));

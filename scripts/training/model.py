@@ -21,7 +21,7 @@ import math
 class ModelConfig:
     """Configuration for the GNN model"""
     # Input dimensions (must match feature extraction)
-    node_feature_dim: int = 176
+    node_feature_dim: int = 224  # Updated from 176 for new ethnic/pattern features
     edge_feature_dim: int = 8
     global_feature_dim: int = 7
 
@@ -34,6 +34,11 @@ class ModelConfig:
     # Prediction heads
     num_relation_types: int = 5  # father, mother, spouse, child, sibling
     candidate_embedding_dim: int = 64
+
+    # Attribute generation heads
+    num_ethnic_classes: int = 12  # irish, german, italian, polish, scandinavian, scottish, jewish, portuguese, hawaiian, chinese, japanese, filipino
+    num_occupation_classes: int = 10
+    location_encoding_dim: int = 8
 
     # Training
     use_edge_features: bool = True
@@ -347,6 +352,83 @@ class CandidateRankingHead(nn.Module):
 
 
 # ============================================================================
+# Attribute Generation Heads
+# ============================================================================
+
+class BirthYearPredictionHead(nn.Module):
+    """
+    Predicts the birth year of a missing relative.
+
+    Output: Normalized birth year (0-1 range) and confidence.
+    """
+
+    def __init__(self, hidden_dim: int, dropout: float = 0.1):
+        super().__init__()
+
+        self.fc1 = nn.Linear(hidden_dim, hidden_dim // 2)
+        self.fc2 = nn.Linear(hidden_dim // 2, hidden_dim // 4)
+        self.fc_year = nn.Linear(hidden_dim // 4, 1)  # Normalized year
+        self.fc_confidence = nn.Linear(hidden_dim // 4, 1)  # Confidence
+        self.dropout = nn.Dropout(dropout)
+
+    def __call__(self, node_embeddings: mx.array) -> Tuple[mx.array, mx.array]:
+        x = self.fc1(node_embeddings)
+        x = nn.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        x = nn.relu(x)
+
+        year = nn.sigmoid(self.fc_year(x)).squeeze(-1)  # 0-1 normalized
+        confidence = nn.sigmoid(self.fc_confidence(x)).squeeze(-1)
+
+        return year, confidence
+
+
+class EthnicOriginPredictionHead(nn.Module):
+    """
+    Predicts the ethnic origin of a missing relative.
+
+    Output: Probability distribution over ethnic origin classes.
+    """
+
+    def __init__(self, hidden_dim: int, num_classes: int = 12, dropout: float = 0.1):
+        super().__init__()
+
+        self.fc1 = nn.Linear(hidden_dim, hidden_dim // 2)
+        self.fc2 = nn.Linear(hidden_dim // 2, num_classes)
+        self.dropout = nn.Dropout(dropout)
+
+    def __call__(self, node_embeddings: mx.array) -> mx.array:
+        x = self.fc1(node_embeddings)
+        x = nn.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return nn.softmax(x, axis=-1)
+
+
+class LocationPredictionHead(nn.Module):
+    """
+    Predicts likely location for a missing relative.
+
+    Output: Location encoding (hash-based, multi-hot).
+    """
+
+    def __init__(self, hidden_dim: int, location_dim: int = 8, dropout: float = 0.1):
+        super().__init__()
+
+        self.fc1 = nn.Linear(hidden_dim, hidden_dim // 2)
+        self.fc2 = nn.Linear(hidden_dim // 2, location_dim)
+        self.dropout = nn.Dropout(dropout)
+
+    def __call__(self, node_embeddings: mx.array) -> mx.array:
+        x = self.fc1(node_embeddings)
+        x = nn.relu(x)
+        x = self.dropout(x)
+        x = self.fc2(x)
+        return nn.sigmoid(x)  # Multi-hot encoding
+
+
+# ============================================================================
 # Full Model
 # ============================================================================
 
@@ -361,6 +443,7 @@ class FamilyTreeGNN(nn.Module):
     4. Missing children prediction (binary per node)
     5. Missing siblings prediction (binary per node)
     6. Candidate ranking for each relation type
+    7. Attribute generation for missing relatives (birth year, ethnic origin, location)
     """
 
     def __init__(self, config: Optional[ModelConfig] = None):
@@ -399,6 +482,28 @@ class FamilyTreeGNN(nn.Module):
             self.config.hidden_dim, self.config.candidate_embedding_dim
         )
 
+        # Attribute generation heads for father
+        self.father_birth_year_head = BirthYearPredictionHead(
+            self.config.hidden_dim, self.config.dropout_rate
+        )
+        self.father_ethnic_head = EthnicOriginPredictionHead(
+            self.config.hidden_dim, self.config.num_ethnic_classes, self.config.dropout_rate
+        )
+        self.father_location_head = LocationPredictionHead(
+            self.config.hidden_dim, self.config.location_encoding_dim, self.config.dropout_rate
+        )
+
+        # Attribute generation heads for mother
+        self.mother_birth_year_head = BirthYearPredictionHead(
+            self.config.hidden_dim, self.config.dropout_rate
+        )
+        self.mother_ethnic_head = EthnicOriginPredictionHead(
+            self.config.hidden_dim, self.config.num_ethnic_classes, self.config.dropout_rate
+        )
+        self.mother_location_head = LocationPredictionHead(
+            self.config.hidden_dim, self.config.location_encoding_dim, self.config.dropout_rate
+        )
+
     def encode(
         self,
         node_features: mx.array,
@@ -422,6 +527,29 @@ class FamilyTreeGNN(nn.Module):
             'missing_siblings': self.missing_siblings_head(node_embeddings)
         }
 
+    def predict_attributes(
+        self,
+        node_embeddings: mx.array
+    ) -> Dict[str, Dict[str, mx.array]]:
+        """Predict attributes for missing relatives."""
+        father_year, father_year_conf = self.father_birth_year_head(node_embeddings)
+        mother_year, mother_year_conf = self.mother_birth_year_head(node_embeddings)
+
+        return {
+            'father': {
+                'birth_year': father_year,
+                'birth_year_confidence': father_year_conf,
+                'ethnic_origin': self.father_ethnic_head(node_embeddings),
+                'location': self.father_location_head(node_embeddings)
+            },
+            'mother': {
+                'birth_year': mother_year,
+                'birth_year_confidence': mother_year_conf,
+                'ethnic_origin': self.mother_ethnic_head(node_embeddings),
+                'location': self.mother_location_head(node_embeddings)
+            }
+        }
+
     def rank_candidates(
         self,
         query_embedding: mx.array,
@@ -443,14 +571,16 @@ class FamilyTreeGNN(nn.Module):
         node_features: mx.array,
         edge_index: mx.array,
         edge_features: Optional[mx.array] = None,
-        global_features: Optional[mx.array] = None
-    ) -> Tuple[mx.array, Dict[str, mx.array]]:
+        global_features: Optional[mx.array] = None,
+        predict_attrs: bool = False
+    ) -> Tuple[mx.array, Dict[str, mx.array], Optional[Dict[str, Dict[str, mx.array]]]]:
         """
         Full forward pass.
 
         Returns:
             node_embeddings: [num_nodes, hidden_dim]
             predictions: Dict with missing predictions for each relation type
+            attribute_predictions: Dict with attribute predictions (if predict_attrs=True)
         """
         # Encode
         node_embeddings = self.encode(
@@ -460,7 +590,12 @@ class FamilyTreeGNN(nn.Module):
         # Predict missing relations
         predictions = self.predict_missing(node_embeddings)
 
-        return node_embeddings, predictions
+        # Optionally predict attributes
+        attribute_predictions = None
+        if predict_attrs:
+            attribute_predictions = self.predict_attributes(node_embeddings)
+
+        return node_embeddings, predictions, attribute_predictions
 
 
 # ============================================================================
@@ -557,6 +692,88 @@ def ranking_loss(
     losses = mx.maximum(mx.array(0.0), margin - (pos_score - neg_scores))
 
     return mx.mean(losses)
+
+
+def attribute_loss(
+    attribute_predictions: Dict[str, Dict[str, mx.array]],
+    attribute_labels: Dict[str, mx.array],
+    missing_mask: Dict[str, mx.array],
+    weights: Optional[Dict[str, float]] = None
+) -> Tuple[mx.array, Dict[str, mx.array]]:
+    """
+    Compute loss for attribute prediction.
+
+    Only computes loss for nodes where we have ground truth (the relative exists).
+
+    Args:
+        attribute_predictions: Dict with 'father' and 'mother' attribute predictions
+        attribute_labels: Dict with ground truth attribute labels
+        missing_mask: Dict with masks indicating which nodes have the relative
+        weights: Optional weights for different attribute types
+    """
+    if weights is None:
+        weights = {
+            'birth_year': 1.0,
+            'ethnic_origin': 0.5,
+            'location': 0.3
+        }
+
+    total_loss = mx.array(0.0)
+    task_losses = {}
+
+    for parent_type in ['father', 'mother']:
+        preds = attribute_predictions.get(parent_type, {})
+
+        # Birth year loss (MSE)
+        if 'birth_year' in preds and f'{parent_type}BirthYear' in attribute_labels:
+            pred_year = preds['birth_year']
+            true_year = mx.array(attribute_labels[f'{parent_type}BirthYear'])
+
+            # Only compute loss where we have ground truth (relative exists)
+            has_relative = 1.0 - mx.array(missing_mask[f'missing_{parent_type}'])
+            mask_sum = mx.sum(has_relative) + 1e-8
+
+            year_loss = mx.sum(has_relative * (pred_year - true_year) ** 2) / mask_sum
+            task_losses[f'{parent_type}_birth_year'] = year_loss
+            total_loss = total_loss + weights['birth_year'] * year_loss
+
+        # Ethnic origin loss (cross-entropy)
+        if 'ethnic_origin' in preds and f'{parent_type}EthnicOrigin' in attribute_labels:
+            pred_ethnic = preds['ethnic_origin']
+            true_ethnic = mx.array(attribute_labels[f'{parent_type}EthnicOrigin'])
+
+            # Cross-entropy loss
+            eps = 1e-7
+            pred_ethnic = mx.clip(pred_ethnic, eps, 1 - eps)
+
+            has_relative = 1.0 - mx.array(missing_mask[f'missing_{parent_type}'])
+            mask_sum = mx.sum(has_relative) + 1e-8
+
+            # Only count samples where we have a labeled ethnic origin
+            has_label = mx.sum(true_ethnic, axis=-1) > 0
+            combined_mask = has_relative * has_label
+
+            ce_loss = -mx.sum(true_ethnic * mx.log(pred_ethnic), axis=-1)
+            ethnic_loss = mx.sum(combined_mask * ce_loss) / (mx.sum(combined_mask) + 1e-8)
+            task_losses[f'{parent_type}_ethnic_origin'] = ethnic_loss
+            total_loss = total_loss + weights['ethnic_origin'] * ethnic_loss
+
+        # Location loss (binary cross-entropy for multi-hot)
+        if 'location' in preds and 'parentLocation' in attribute_labels:
+            pred_loc = preds['location']
+            true_loc = mx.array(attribute_labels['parentLocation'])
+
+            has_relative = 1.0 - mx.array(missing_mask[f'missing_{parent_type}'])
+            mask_sum = mx.sum(has_relative) + 1e-8
+
+            eps = 1e-7
+            pred_loc = mx.clip(pred_loc, eps, 1 - eps)
+            bce = -true_loc * mx.log(pred_loc) - (1 - true_loc) * mx.log(1 - pred_loc)
+            loc_loss = mx.sum(has_relative[:, None] * bce) / (mask_sum * pred_loc.shape[-1])
+            task_losses[f'{parent_type}_location'] = loc_loss
+            total_loss = total_loss + weights['location'] * loc_loss
+
+    return total_loss, task_losses
 
 
 # ============================================================================

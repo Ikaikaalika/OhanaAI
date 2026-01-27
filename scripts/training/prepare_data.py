@@ -16,6 +16,7 @@ from datetime import datetime
 from typing import Dict, List, Optional, Tuple, Set
 from dataclasses import dataclass, field
 import numpy as np
+from collections import Counter, defaultdict
 
 
 # ============================================================================
@@ -283,14 +284,210 @@ def parse_gedcom(file_path: Path) -> Tuple[Dict[str, Individual], Dict[str, Fami
 
 
 # ============================================================================
+# Ethnic Origin and Name Pattern Detection
+# ============================================================================
+
+SURNAME_PATTERNS = {
+    'irish': [r"^O'", r'^Mc', r'^Mac', r'(?:agh|igan|ihan|elly|eary|arty)$'],
+    'german': [r'(?:mann|berg|stein|burg|feld|bach|hoff|meyer|müller|schmidt|schneider|fischer|weber)$'],
+    'italian': [r'(?:ini|ino|etti|ello|ucci|acci|oli|ari|one|oni|isi|ese|ato|iti|otti)$'],
+    'polish': [r'(?:ski|ska|wicz|czyk|iak|czak|owski|ewicz|owicz)$'],
+    'scandinavian': [r'(?:son|sen|sson|berg|gren|lund|qvist|strom|dahl)$'],
+    'scottish': [r'^Mac', r'^Mc', r'(?:ston|son)$'],
+    'jewish': [r'(?:berg|stein|man|witz|feld|baum|blum|gold|silver|rosen|green|klein)$'],
+    'portuguese': [r'(?:eira|eiro|ães|es|inho|inha|ões)$'],
+    'hawaiian': [r'(?:^Ka|^Ke|^Ku|^La|^Ma|^Na|^Pa|lani|moku|aloha|lei|kai|mana|nui|iki)'],
+    'chinese': [r'^(?:Wong|Wang|Chen|Li|Liu|Zhang|Huang|Lin|Wu|Yang|Zhou|Xu|Lee|Cheng|Lau|Ho|Ng)$'],
+    'japanese': [r'(?:moto|yama|shima|mura|kawa|saki|hara|uchi|guchi|wara|zaki|zawa|ta|da|no|ki)$'],
+    'filipino': [r'(?:Cruz|Santos|Reyes|Garcia|Mendoza|Torres|Flores|Rivera|Ramos|Aquino|Bautista|Villanueva)$'],
+}
+
+REGIONAL_NAMES = {
+    'irish': {'male': ['Patrick', 'Michael', 'John', 'Sean', 'James', 'William', 'Thomas', 'Daniel'],
+              'female': ['Mary', 'Bridget', 'Catherine', 'Margaret', 'Anne', 'Ellen', 'Nora', 'Rose']},
+    'german': {'male': ['Johann', 'Friedrich', 'Wilhelm', 'Heinrich', 'Karl', 'Hans', 'Otto', 'Ludwig'],
+               'female': ['Maria', 'Anna', 'Margarethe', 'Elisabeth', 'Katharina', 'Frieda', 'Helene', 'Emma']},
+    'italian': {'male': ['Giuseppe', 'Giovanni', 'Antonio', 'Francesco', 'Luigi', 'Salvatore', 'Angelo', 'Vincenzo'],
+                'female': ['Maria', 'Rosa', 'Angela', 'Giovanna', 'Lucia', 'Concetta', 'Teresa', 'Carmela']},
+    'polish': {'male': ['Jan', 'Stanislaw', 'Jozef', 'Wladyslaw', 'Kazimierz', 'Tadeusz', 'Antoni', 'Franciszek'],
+               'female': ['Maria', 'Anna', 'Zofia', 'Jadwiga', 'Helena', 'Stefania', 'Bronislawa', 'Wanda']},
+    'scandinavian': {'male': ['Erik', 'Lars', 'Anders', 'Nils', 'Olaf', 'Magnus', 'Johan', 'Sven'],
+                     'female': ['Anna', 'Maria', 'Ingrid', 'Kristina', 'Karin', 'Margareta', 'Astrid', 'Sigrid']},
+    'hawaiian': {'male': ['Kekoa', 'Keoni', 'Kalani', 'Makoa', 'Kaleo', 'Kai', 'Lono', 'Manu'],
+                 'female': ['Leilani', 'Mahina', 'Malia', 'Kailani', 'Noelani', 'Keala', 'Nalani', 'Haunani']},
+    'chinese': {'male': ['Wing', 'Hing', 'Ming', 'Chung', 'Wai', 'Cheung', 'Yuen', 'Fong'],
+                'female': ['Mei', 'Lin', 'Ying', 'Fong', 'Lai', 'Wai', 'Siu', 'Kit']},
+    'japanese': {'male': ['Takeshi', 'Hiroshi', 'Masao', 'Yoshio', 'Kenji', 'Taro', 'Saburo', 'Jiro'],
+                 'female': ['Yuki', 'Hanako', 'Yoshiko', 'Sachiko', 'Kimiko', 'Masako', 'Noriko', 'Fumiko']},
+    'portuguese': {'male': ['Joao', 'Jose', 'Manuel', 'Antonio', 'Francisco', 'Joaquim', 'Carlos', 'Luis'],
+                   'female': ['Maria', 'Ana', 'Rosa', 'Isabel', 'Francisca', 'Antonia', 'Joaquina', 'Teresa']},
+}
+
+ERA_OCCUPATIONS = {
+    (1500, 1700): ['Farmer', 'Blacksmith', 'Cooper', 'Miller', 'Carpenter', 'Weaver', 'Tailor'],
+    (1700, 1850): ['Farmer', 'Laborer', 'Merchant', 'Craftsman', 'Sailor', 'Innkeeper', 'Clerk'],
+    (1850, 1920): ['Farmer', 'Laborer', 'Factory Worker', 'Miner', 'Railroad Worker', 'Clerk', 'Teacher'],
+    (1920, 1970): ['Factory Worker', 'Farmer', 'Clerk', 'Salesman', 'Mechanic', 'Teacher', 'Office Worker'],
+    (1970, 2030): ['Office Worker', 'Teacher', 'Engineer', 'Manager', 'Healthcare Worker', 'Service Worker'],
+}
+
+
+def detect_ethnic_origin(surname: Optional[str], birth_place: Optional['PlaceInfo'] = None) -> Tuple[Optional[str], float]:
+    """Detect likely ethnic origin from surname patterns and location."""
+    if not surname:
+        return None, 0.0
+
+    surname_upper = surname.strip()
+    matches = []
+
+    for ethnicity, patterns in SURNAME_PATTERNS.items():
+        for pattern in patterns:
+            if re.search(pattern, surname_upper, re.IGNORECASE):
+                matches.append(ethnicity)
+                break
+
+    # Check location for additional hints
+    if birth_place and birth_place.components:
+        location_str = ' '.join(birth_place.components).lower()
+        if any(loc in location_str for loc in ['hawaii', 'honolulu', 'maui', 'oahu', 'kauai']):
+            if 'hawaiian' not in matches:
+                matches.append('hawaiian')
+        elif any(loc in location_str for loc in ['ireland', 'dublin', 'cork', 'galway']):
+            if 'irish' not in matches:
+                matches.append('irish')
+        elif any(loc in location_str for loc in ['germany', 'prussia', 'bavaria', 'saxony']):
+            if 'german' not in matches:
+                matches.append('german')
+        elif any(loc in location_str for loc in ['italy', 'sicily', 'naples', 'rome']):
+            if 'italian' not in matches:
+                matches.append('italian')
+        elif any(loc in location_str for loc in ['poland', 'warsaw', 'krakow']):
+            if 'polish' not in matches:
+                matches.append('polish')
+
+    if matches:
+        return matches[0], min(0.3 + 0.2 * len(matches), 0.9)
+    return None, 0.0
+
+
+def get_era_occupation(birth_year: Optional[int], location: Optional['PlaceInfo'] = None) -> Optional[str]:
+    """Get typical occupation for an era and location."""
+    if not birth_year:
+        return None
+
+    for (start, end), occupations in ERA_OCCUPATIONS.items():
+        if start <= birth_year < end:
+            # Location-specific adjustments
+            if location and location.components:
+                loc_str = ' '.join(location.components).lower()
+                if 'hawaii' in loc_str:
+                    return 'Plantation Worker' if birth_year < 1950 else occupations[0]
+                if any(loc in loc_str for loc in ['mining', 'coal', 'pennsylvania', 'west virginia']):
+                    return 'Miner'
+                if any(loc in loc_str for loc in ['new york', 'chicago', 'boston', 'philadelphia']):
+                    return 'Factory Worker' if birth_year < 1950 else 'Office Worker'
+            return occupations[0]
+    return None
+
+
+# ============================================================================
+# Family Pattern Analysis
+# ============================================================================
+
+class FamilyPatternAnalyzer:
+    """Analyzes patterns across the family tree for improved predictions."""
+
+    def __init__(self, individuals: Dict[str, 'Individual'], families: Dict[str, 'Family']):
+        self.individuals = individuals
+        self.families = families
+        self.naming_patterns: Dict[str, Counter] = defaultdict(Counter)
+        self.occupation_patterns: Counter = Counter()
+        self.location_patterns: Counter = Counter()
+        self.surname_variants: Dict[str, Set[str]] = defaultdict(set)
+        self.sibling_birth_gaps: List[float] = []
+        self.parent_child_age_gaps: List[Tuple[str, float]] = []  # (relation_type, gap)
+        self._analyze()
+
+    def _analyze(self):
+        """Analyze all patterns in the family tree."""
+        for ind in self.individuals.values():
+            # Track given names by surname
+            if ind.given_name and ind.surname:
+                self.naming_patterns[ind.surname.lower()][ind.given_name.lower()] += 1
+
+            # Track locations
+            if ind.birth_place:
+                for comp in ind.birth_place.components:
+                    self.location_patterns[comp.lower()] += 1
+
+            # Analyze parent-child age gaps
+            if ind.birth_year:
+                if ind.father and ind.father in self.individuals:
+                    father = self.individuals[ind.father]
+                    if father.birth_year:
+                        gap = ind.birth_year - father.birth_year
+                        if 15 <= gap <= 70:
+                            self.parent_child_age_gaps.append(('father', gap))
+
+                if ind.mother and ind.mother in self.individuals:
+                    mother = self.individuals[ind.mother]
+                    if mother.birth_year:
+                        gap = ind.birth_year - mother.birth_year
+                        if 12 <= gap <= 55:
+                            self.parent_child_age_gaps.append(('mother', gap))
+
+            # Analyze sibling birth gaps
+            if ind.siblings:
+                sibling_years = []
+                if ind.birth_year:
+                    sibling_years.append(ind.birth_year)
+                for sib_id in ind.siblings:
+                    sib = self.individuals.get(sib_id)
+                    if sib and sib.birth_year:
+                        sibling_years.append(sib.birth_year)
+
+                if len(sibling_years) >= 2:
+                    sibling_years.sort()
+                    for i in range(1, len(sibling_years)):
+                        gap = sibling_years[i] - sibling_years[i-1]
+                        if 0 < gap <= 15:
+                            self.sibling_birth_gaps.append(gap)
+
+    def get_avg_parent_age_gap(self, relation: str) -> float:
+        """Get average age gap for a parent type."""
+        gaps = [g for t, g in self.parent_child_age_gaps if t == relation]
+        if gaps:
+            return sum(gaps) / len(gaps)
+        return 28.0 if relation == 'father' else 25.0  # Default
+
+    def get_avg_sibling_gap(self) -> float:
+        """Get average sibling birth gap."""
+        if self.sibling_birth_gaps:
+            return sum(self.sibling_birth_gaps) / len(self.sibling_birth_gaps)
+        return 2.5  # Default
+
+    def get_common_names(self, surname: str, gender: str, n: int = 5) -> List[str]:
+        """Get most common given names for a surname."""
+        names = self.naming_patterns.get(surname.lower(), Counter())
+        # Filter by gender (rough heuristic based on name endings)
+        return [name for name, _ in names.most_common(n * 2)][:n]
+
+    def get_common_locations(self, n: int = 5) -> List[str]:
+        """Get most common locations in the tree."""
+        return [loc for loc, _ in self.location_patterns.most_common(n)]
+
+
+# ============================================================================
 # Feature Extraction
 # ============================================================================
 
-FEATURE_DIM = 176
+# Increased feature dimension to include ethnic and pattern features
+FEATURE_DIM = 224  # Was 176, added 48 for new features
 
 
 def extract_features(ind: Individual, all_individuals: Dict[str, Individual],
-                     locations: Set[str], year_range: Tuple[int, int]) -> List[float]:
+                     locations: Set[str], year_range: Tuple[int, int],
+                     pattern_analyzer: Optional[FamilyPatternAnalyzer] = None) -> List[float]:
     """Extract feature vector for an individual."""
     features = []
 
@@ -437,7 +634,82 @@ def extract_features(ind: Individual, all_individuals: Dict[str, Individual],
     features.append(1 if ind.death_place else 0)
     features.append(1 if len(ind.residences) > 0 else 0)
 
-    # Padding to 176
+    # === Ethnic origin features (16) ===
+    ethnic_origin, ethnic_confidence = detect_ethnic_origin(ind.surname, ind.birth_place)
+    ethnic_features = [0] * 16
+
+    ethnic_to_idx = {
+        'irish': 0, 'german': 1, 'italian': 2, 'polish': 3,
+        'scandinavian': 4, 'scottish': 5, 'jewish': 6, 'portuguese': 7,
+        'hawaiian': 8, 'chinese': 9, 'japanese': 10, 'filipino': 11
+    }
+    if ethnic_origin and ethnic_origin in ethnic_to_idx:
+        ethnic_features[ethnic_to_idx[ethnic_origin]] = 1
+    ethnic_features[12] = ethnic_confidence
+    ethnic_features[13] = 1 if ethnic_origin else 0  # has detected origin
+    # padding
+    features.extend(ethnic_features)
+
+    # === Family pattern features (16) ===
+    pattern_features = [0] * 16
+
+    if pattern_analyzer:
+        # Average parent age gaps (normalized)
+        avg_father_gap = pattern_analyzer.get_avg_parent_age_gap('father')
+        avg_mother_gap = pattern_analyzer.get_avg_parent_age_gap('mother')
+        pattern_features[0] = avg_father_gap / 50.0
+        pattern_features[1] = avg_mother_gap / 50.0
+
+        # Average sibling gap (normalized)
+        avg_sib_gap = pattern_analyzer.get_avg_sibling_gap()
+        pattern_features[2] = avg_sib_gap / 10.0
+
+        # Name commonality (is this person's name common in the family?)
+        if ind.given_name and ind.surname:
+            common_names = pattern_analyzer.get_common_names(ind.surname, ind.gender or 'M')
+            pattern_features[3] = 1 if ind.given_name.lower() in [n.lower() for n in common_names] else 0
+
+        # Location commonality
+        if ind.birth_place and ind.birth_place.components:
+            common_locs = pattern_analyzer.get_common_locations()
+            for comp in ind.birth_place.components:
+                if comp.lower() in [l.lower() for l in common_locs]:
+                    pattern_features[4] = 1
+                    break
+
+        # Has known naming tradition
+        pattern_features[5] = 1 if len(pattern_analyzer.naming_patterns) > 3 else 0
+
+        # Number of unique surnames in family (diversity indicator)
+        pattern_features[6] = min(len(pattern_analyzer.naming_patterns) / 20, 1)
+
+        # Number of analyzed gaps
+        pattern_features[7] = min(len(pattern_analyzer.parent_child_age_gaps) / 50, 1)
+
+    features.extend(pattern_features)
+
+    # === Era-specific occupation features (16) ===
+    occupation_features = [0] * 16
+
+    era_occupation = get_era_occupation(ind.birth_year, ind.birth_place)
+    occupation_to_idx = {
+        'Farmer': 0, 'Laborer': 1, 'Factory Worker': 2, 'Miner': 3,
+        'Plantation Worker': 4, 'Office Worker': 5, 'Teacher': 6,
+        'Merchant': 7, 'Craftsman': 8, 'Clerk': 9
+    }
+    if era_occupation and era_occupation in occupation_to_idx:
+        occupation_features[occupation_to_idx[era_occupation]] = 1
+    occupation_features[10] = 1 if era_occupation else 0  # has predicted occupation
+    # Additional era indicators for occupation context
+    if ind.birth_year:
+        occupation_features[11] = 1 if ind.birth_year < 1850 else 0  # pre-industrial
+        occupation_features[12] = 1 if 1850 <= ind.birth_year < 1920 else 0  # industrial
+        occupation_features[13] = 1 if 1920 <= ind.birth_year < 1970 else 0  # modern
+        occupation_features[14] = 1 if ind.birth_year >= 1970 else 0  # contemporary
+
+    features.extend(occupation_features)
+
+    # Padding to FEATURE_DIM (224)
     while len(features) < FEATURE_DIM:
         features.append(0)
 
@@ -465,6 +737,9 @@ def prepare_training_data(individuals: Dict[str, Individual],
     year_range = (min(all_years) if all_years else 1700,
                   max(all_years) if all_years else 2024)
 
+    # Analyze family patterns
+    pattern_analyzer = FamilyPatternAnalyzer(individuals, families)
+
     # Create node mapping
     node_ids = list(individuals.keys())
     node_id_to_idx = {nid: i for i, nid in enumerate(node_ids)}
@@ -473,7 +748,7 @@ def prepare_training_data(individuals: Dict[str, Individual],
     node_features = []
     for nid in node_ids:
         ind = individuals[nid]
-        features = extract_features(ind, individuals, all_locations, year_range)
+        features = extract_features(ind, individuals, all_locations, year_range, pattern_analyzer)
         node_features.append(features)
 
     # Build edges
@@ -528,6 +803,89 @@ def prepare_training_data(individuals: Dict[str, Individual],
         'missingSiblings': [0 if len(individuals[nid].siblings) > 0 else 1 for nid in node_ids]
     }
 
+    # Build attribute labels for training attribute generation
+    # These labels are derived from known relatives to train the model to predict attributes
+    attribute_labels = {
+        'fatherBirthYear': [],  # Normalized birth year of father
+        'motherBirthYear': [],  # Normalized birth year of mother
+        'fatherEthnicOrigin': [],  # One-hot encoded ethnic origin (12 classes)
+        'motherEthnicOrigin': [],
+        'parentLocation': [],  # Encoded location features
+    }
+
+    for nid in node_ids:
+        ind = individuals[nid]
+
+        # Father birth year (if known)
+        father_birth_norm = 0.0
+        if ind.father and ind.father in individuals:
+            father = individuals[ind.father]
+            if father.birth_year:
+                father_birth_norm = (father.birth_year - year_range[0]) / max(year_range[1] - year_range[0], 1)
+        attribute_labels['fatherBirthYear'].append(father_birth_norm)
+
+        # Mother birth year (if known)
+        mother_birth_norm = 0.0
+        if ind.mother and ind.mother in individuals:
+            mother = individuals[ind.mother]
+            if mother.birth_year:
+                mother_birth_norm = (mother.birth_year - year_range[0]) / max(year_range[1] - year_range[0], 1)
+        attribute_labels['motherBirthYear'].append(mother_birth_norm)
+
+        # Father ethnic origin (one-hot, 12 classes)
+        father_ethnic = [0] * 12
+        if ind.father and ind.father in individuals:
+            father = individuals[ind.father]
+            ethnic, _ = detect_ethnic_origin(father.surname, father.birth_place)
+            ethnic_to_idx = {
+                'irish': 0, 'german': 1, 'italian': 2, 'polish': 3,
+                'scandinavian': 4, 'scottish': 5, 'jewish': 6, 'portuguese': 7,
+                'hawaiian': 8, 'chinese': 9, 'japanese': 10, 'filipino': 11
+            }
+            if ethnic and ethnic in ethnic_to_idx:
+                father_ethnic[ethnic_to_idx[ethnic]] = 1
+        attribute_labels['fatherEthnicOrigin'].append(father_ethnic)
+
+        # Mother ethnic origin
+        mother_ethnic = [0] * 12
+        if ind.mother and ind.mother in individuals:
+            mother = individuals[ind.mother]
+            ethnic, _ = detect_ethnic_origin(mother.surname, mother.birth_place)
+            ethnic_to_idx = {
+                'irish': 0, 'german': 1, 'italian': 2, 'polish': 3,
+                'scandinavian': 4, 'scottish': 5, 'jewish': 6, 'portuguese': 7,
+                'hawaiian': 8, 'chinese': 9, 'japanese': 10, 'filipino': 11
+            }
+            if ethnic and ethnic in ethnic_to_idx:
+                mother_ethnic[ethnic_to_idx[ethnic]] = 1
+        attribute_labels['motherEthnicOrigin'].append(mother_ethnic)
+
+        # Parent location (use hash-based encoding, 8 dims)
+        parent_loc = [0] * 8
+        if ind.father and ind.father in individuals:
+            father = individuals[ind.father]
+            if father.birth_place and father.birth_place.components:
+                for comp in father.birth_place.components[:2]:
+                    hash_val = hash(comp.lower()) % 8
+                    parent_loc[hash_val] = 1
+        if ind.mother and ind.mother in individuals:
+            mother = individuals[ind.mother]
+            if mother.birth_place and mother.birth_place.components:
+                for comp in mother.birth_place.components[:2]:
+                    hash_val = hash(comp.lower()) % 8
+                    parent_loc[hash_val] = 1
+        attribute_labels['parentLocation'].append(parent_loc)
+
+    # Add family pattern statistics
+    pattern_stats = {
+        'avgFatherAgeGap': pattern_analyzer.get_avg_parent_age_gap('father'),
+        'avgMotherAgeGap': pattern_analyzer.get_avg_parent_age_gap('mother'),
+        'avgSiblingGap': pattern_analyzer.get_avg_sibling_gap(),
+        'numNamingPatterns': len(pattern_analyzer.naming_patterns),
+        'numLocationPatterns': len(pattern_analyzer.location_patterns),
+        'commonLocations': pattern_analyzer.get_common_locations(10),
+    }
+
     # Global features
     global_features = [
         min(len(node_ids) / 10000, 1),
@@ -545,6 +903,8 @@ def prepare_training_data(individuals: Dict[str, Individual],
         'edgeFeatures': edge_features,
         'edgeTypes': edge_types,
         'labels': labels,
+        'attributeLabels': attribute_labels,
+        'patternStats': pattern_stats,
         'nodeIds': node_ids,
         'globalFeatures': global_features
     }

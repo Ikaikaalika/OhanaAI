@@ -29,7 +29,7 @@ from sklearn.model_selection import train_test_split
 sys.path.insert(0, str(Path(__file__).parent))
 from model import (
     FamilyTreeGNN, ModelConfig, create_model, count_parameters,
-    multi_task_loss, binary_cross_entropy, focal_loss
+    multi_task_loss, binary_cross_entropy, focal_loss, attribute_loss
 )
 
 
@@ -190,6 +190,14 @@ class GedcomDataset:
     def _process_direct_example(self, data: Dict) -> Optional[Dict]:
         """Process a direct training example format."""
         node_features = np.array(data['nodeFeatures'], dtype=np.float32)
+
+        # Handle feature dimension mismatch (old 176 vs new 224)
+        if node_features.shape[1] < self.config.node_feature_dim:
+            padding = np.zeros((node_features.shape[0], self.config.node_feature_dim - node_features.shape[1]), dtype=np.float32)
+            node_features = np.concatenate([node_features, padding], axis=1)
+        elif node_features.shape[1] > self.config.node_feature_dim:
+            node_features = node_features[:, :self.config.node_feature_dim]
+
         edge_index = np.array(data['edgeIndex'], dtype=np.int32)
         edge_features = np.array(data.get('edgeFeatures', []), dtype=np.float32)
         edge_types = np.array(data.get('edgeTypes', []), dtype=np.int32)
@@ -199,12 +207,28 @@ class GedcomDataset:
             snake_key = ''.join(['_' + c.lower() if c.isupper() else c for c in key]).lstrip('_')
             labels[snake_key] = np.array(data['labels'].get(key, []), dtype=np.float32)
 
+        # Process attribute labels if present
+        attribute_labels = {}
+        if 'attributeLabels' in data:
+            attr_data = data['attributeLabels']
+            for key in ['fatherBirthYear', 'motherBirthYear']:
+                if key in attr_data:
+                    attribute_labels[key] = np.array(attr_data[key], dtype=np.float32)
+            for key in ['fatherEthnicOrigin', 'motherEthnicOrigin', 'parentLocation']:
+                if key in attr_data:
+                    attribute_labels[key] = np.array(attr_data[key], dtype=np.float32)
+
+        # Process pattern stats if present
+        pattern_stats = data.get('patternStats', {})
+
         return {
             'node_features': node_features,
             'edge_index': edge_index,
             'edge_features': edge_features if edge_features.size > 0 else np.zeros((edge_index.shape[1], self.config.edge_feature_dim), dtype=np.float32),
             'edge_types': edge_types,
             'labels': labels,
+            'attribute_labels': attribute_labels,
+            'pattern_stats': pattern_stats,
             'node_ids': data.get('nodeIds', []),
             'global_features': np.array(data.get('globalFeatures', [0] * self.config.global_feature_dim), dtype=np.float32)
         }
@@ -384,6 +408,15 @@ class Trainer:
             'missing_siblings': 0.3
         })
 
+        # Attribute prediction configuration
+        self.train_attributes = config.get('train_attributes', True)
+        self.attribute_weights = config.get('attribute_weights', {
+            'birth_year': 1.0,
+            'ethnic_origin': 0.5,
+            'location': 0.3
+        })
+        self.attribute_loss_weight = config.get('attribute_loss_weight', 0.5)
+
     def train_epoch(self, epoch: int) -> float:
         """Train for one epoch."""
         total_loss = 0.0
@@ -401,18 +434,30 @@ class Trainer:
             edge_features = mx.array(example['edge_features'])
             global_features = mx.array(example['global_features'])
 
-            # Forward pass
-            _, predictions = model(
-                node_features, edge_index, edge_features, global_features
+            # Forward pass with attribute prediction if enabled
+            predict_attrs = self.train_attributes and 'attribute_labels' in example and len(example['attribute_labels']) > 0
+            _, predictions, attr_predictions = model(
+                node_features, edge_index, edge_features, global_features,
+                predict_attrs=predict_attrs
             )
 
-            # Compute multi-task loss
+            # Compute multi-task loss for missing relative prediction
             loss, _ = multi_task_loss(
                 predictions,
                 example['labels'],
                 weights=self.task_weights,
                 use_focal=self.use_focal_loss
             )
+
+            # Add attribute loss if training attributes
+            if predict_attrs and attr_predictions is not None:
+                attr_loss, _ = attribute_loss(
+                    attr_predictions,
+                    example['attribute_labels'],
+                    example['labels'],  # Use missing labels as mask
+                    weights=self.attribute_weights
+                )
+                loss = loss + self.attribute_loss_weight * attr_loss
 
             return loss
 
@@ -452,7 +497,8 @@ class Trainer:
             'missing_mother': 0.0,
             'missing_spouse': 0.0,
             'missing_children': 0.0,
-            'missing_siblings': 0.0
+            'missing_siblings': 0.0,
+            'attribute_total': 0.0
         }
         num_examples = 0
 
@@ -465,8 +511,10 @@ class Trainer:
             edge_features = mx.array(example['edge_features'])
             global_features = mx.array(example['global_features'])
 
-            _, predictions = self.model(
-                node_features, edge_index, edge_features, global_features
+            predict_attrs = self.train_attributes and 'attribute_labels' in example and len(example.get('attribute_labels', {})) > 0
+            _, predictions, attr_predictions = self.model(
+                node_features, edge_index, edge_features, global_features,
+                predict_attrs=predict_attrs
             )
 
             loss, batch_task_losses = multi_task_loss(
@@ -475,6 +523,18 @@ class Trainer:
                 weights=self.task_weights,
                 use_focal=self.use_focal_loss
             )
+
+            # Add attribute loss
+            if predict_attrs and attr_predictions is not None:
+                attr_loss, attr_task_losses = attribute_loss(
+                    attr_predictions,
+                    example['attribute_labels'],
+                    example['labels'],
+                    weights=self.attribute_weights
+                )
+                mx.eval(attr_loss)
+                task_losses['attribute_total'] += float(attr_loss)
+                loss = loss + self.attribute_loss_weight * attr_loss
 
             mx.eval(loss)
             total_loss += float(loss)
@@ -693,6 +753,14 @@ def main():
             'missing_spouse': 0.8,
             'missing_children': 0.5,
             'missing_siblings': 0.3
+        },
+        # Attribute generation training
+        'train_attributes': True,
+        'attribute_loss_weight': 0.5,
+        'attribute_weights': {
+            'birth_year': 1.0,
+            'ethnic_origin': 0.5,
+            'location': 0.3
         }
     }
 
