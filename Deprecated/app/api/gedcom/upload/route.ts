@@ -75,7 +75,11 @@ export async function POST(request: NextRequest) {
 
     // Generate unique filename
     const filename = `${uuidv4()}.ged`
-    await saveUploadFile(filename, buffer)
+    const blobPath = `uploads/${session.user.id}/${filename}`
+    const stored = await saveUploadFile(filename, buffer, {
+      blobPath,
+      contentType: 'text/plain'
+    })
 
     // Parse GEDCOM file
     const gedcomText = buffer.toString('utf-8')
@@ -88,6 +92,8 @@ export async function POST(request: NextRequest) {
       originalName: file.name,
       fileSize: file.size,
       fileHash,
+      blobUrl: stored.blobUrl || null,
+      blobPath: stored.blobPath || null,
       parsedData,
       isProcessed: false,
     }).returning()

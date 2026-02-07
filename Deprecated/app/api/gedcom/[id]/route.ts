@@ -50,7 +50,10 @@ export async function DELETE(
 
     // Delete the physical file
     try {
-      await deleteUploadFile(file[0].filename)
+      await deleteUploadFile(file[0].filename, {
+        blobPath: file[0].blobPath || undefined,
+        blobUrl: file[0].blobUrl || undefined
+      })
     } catch (error) {
       console.error('Error deleting physical file:', error)
       // Continue even if file deletion fails

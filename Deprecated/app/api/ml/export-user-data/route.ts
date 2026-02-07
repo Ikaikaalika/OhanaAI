@@ -5,7 +5,8 @@ import { eq } from 'drizzle-orm'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { createHash } from 'crypto'
-import { ensureMlExportsDir } from '@/lib/storage'
+import { ensureMlExportsDir, isBlobEnabled } from '@/lib/storage'
+import { put } from '@vercel/blob'
 
 export const runtime = 'nodejs'
 
@@ -44,8 +45,6 @@ export async function POST(request: NextRequest) {
 
     // Create secure export directory
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
-    const exportDir = await ensureMlExportsDir()
-
     // Generate secure filename
     const dataHash = createHash('sha256')
       .update(JSON.stringify(newTrainingData.map(d => d.id)))
@@ -53,7 +52,9 @@ export async function POST(request: NextRequest) {
       .substring(0, 8)
     
     const filename = `ohana_training_data_${timestamp}_${dataHash}.json`
-    const filepath = join(exportDir, filename)
+    let exportPath: string | null = null
+    let exportUrl: string | null = null
+    let blobPath: string | null = null
 
     // Prepare export data with metadata if requested
     const exportData = {
@@ -74,14 +75,22 @@ export async function POST(request: NextRequest) {
       }))
     }
 
-    // Write export file
-    await writeFile(filepath, JSON.stringify(exportData, null, 2))
+    const exportPayload = JSON.stringify(exportData, null, 2)
 
-    // Generate webhook URL for your local machine to fetch the data
-    const webhookBase = process.env.NEXTAUTH_URL || ''
-    const webhookUrl = webhookBase
-      ? `${webhookBase.replace(/\/$/, '')}/api/ml/download-export/${filename}?key=${apiKey}`
-      : null
+    if (isBlobEnabled()) {
+      const blobKey = `exports/${filename}`
+      const blob = await put(blobKey, exportPayload, {
+        access: 'public',
+        contentType: 'application/json'
+      })
+      exportUrl = blob.url
+      blobPath = blob.pathname || blobKey
+    } else {
+      const exportDir = await ensureMlExportsDir()
+      const filepath = join(exportDir, filename)
+      await writeFile(filepath, exportPayload)
+      exportPath = filepath
+    }
 
     // Mark data as exported (but not yet included in training)
     for (const item of newTrainingData) {
@@ -91,14 +100,20 @@ export async function POST(request: NextRequest) {
     }
 
     // Generate training instructions
-    const instructions = generateTrainingInstructions(newTrainingData.length, filename)
+    const instructions = generateTrainingInstructions(
+      newTrainingData.length,
+      filename,
+      exportUrl || undefined,
+      exportPath || undefined
+    )
 
     return NextResponse.json({
       message: 'Training data exported successfully',
       count: newTrainingData.length,
       filename,
-      exportPath: filepath,
-      webhookUrl,
+      exportPath,
+      exportUrl,
+      blobPath,
       instructions,
       metadata: exportData.metadata
     })
@@ -146,7 +161,12 @@ async function getExportMetadata(trainingData: any[]) {
   }
 }
 
-function generateTrainingInstructions(dataCount: number, filename: string): string {
+function generateTrainingInstructions(
+  dataCount: number,
+  filename: string,
+  exportUrl?: string,
+  exportPath?: string
+): string {
   return `
 # Ohana AI Training Instructions
 
@@ -159,8 +179,8 @@ function generateTrainingInstructions(dataCount: number, filename: string): stri
 
 1. **Download the data**:
    \`\`\`bash
-   # The webhook URL provided above will download the file
-   # Or manually copy from your Vercel deployment exports folder
+   ${exportUrl ? `curl -L "${exportUrl}" -o ${filename}` : '# Use the exportUrl from the API response if provided'}
+   ${exportPath ? `# Local file path: ${exportPath}` : '# Or copy from your local exports folder if running locally'}
    \`\`\`
 
 2. **Set up Python environment**:

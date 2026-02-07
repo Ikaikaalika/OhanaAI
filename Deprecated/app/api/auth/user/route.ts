@@ -22,7 +22,10 @@ export async function DELETE(_request: NextRequest) {
     // Delete files on disk best-effort
     for (const file of files) {
       try {
-        await deleteUploadFile(file.filename)
+        await deleteUploadFile(file.filename, {
+          blobPath: file.blobPath || undefined,
+          blobUrl: file.blobUrl || undefined
+        })
       } catch {}
     }
 

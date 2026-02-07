@@ -1,0 +1,318 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OhanaAI - Ancestor Fan Chart: Reed Grant Hendrickson</title>
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+            min-height: 100vh;
+            color: #fff;
+        }
+        .header {
+            padding: 20px;
+            text-align: center;
+            background: rgba(0,0,0,0.3);
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .header h1 {
+            font-size: 1.8em;
+            margin-bottom: 5px;
+        }
+        .header p {
+            opacity: 0.7;
+            font-size: 0.9em;
+        }
+        .legend {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            padding: 15px;
+            flex-wrap: wrap;
+        }
+        .legend-item {
+            display: flex;
+            align-items: center;
+            gap: 8px;
+            font-size: 0.85em;
+        }
+        .legend-color {
+            width: 20px;
+            height: 20px;
+            border-radius: 4px;
+        }
+        .chart-container {
+            display: flex;
+            justify-content: center;
+            padding: 20px;
+            overflow: auto;
+        }
+        #fanchart {
+            background: rgba(255,255,255,0.02);
+            border-radius: 50%;
+        }
+        .arc {
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        .arc:hover {
+            opacity: 0.8;
+        }
+        .arc-label {
+            font-size: 10px;
+            fill: #fff;
+            pointer-events: none;
+            text-shadow: 0 1px 2px rgba(0,0,0,0.8);
+        }
+        .tooltip {
+            position: fixed;
+            background: rgba(20, 20, 40, 0.95);
+            border: 1px solid rgba(255,255,255,0.2);
+            border-radius: 8px;
+            padding: 12px 16px;
+            font-size: 13px;
+            pointer-events: none;
+            z-index: 1000;
+            max-width: 300px;
+            box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+        }
+        .tooltip h3 {
+            margin-bottom: 8px;
+            font-size: 14px;
+            border-bottom: 1px solid rgba(255,255,255,0.2);
+            padding-bottom: 6px;
+        }
+        .tooltip .dates {
+            opacity: 0.7;
+            margin-bottom: 8px;
+        }
+        .tooltip .prediction {
+            background: rgba(255,100,100,0.2);
+            border-left: 3px solid #ff6b6b;
+            padding: 8px;
+            margin: 8px 0;
+            border-radius: 0 4px 4px 0;
+        }
+        .tooltip .candidates {
+            margin-top: 10px;
+        }
+        .tooltip .candidates h4 {
+            font-size: 12px;
+            margin-bottom: 6px;
+            color: #4ecdc4;
+        }
+        .tooltip .candidate {
+            padding: 4px 0;
+            border-bottom: 1px solid rgba(255,255,255,0.1);
+        }
+        .tooltip .candidate:last-child {
+            border-bottom: none;
+        }
+        .missing-indicator {
+            animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.6; }
+        }
+    </style>
+</head>
+<body>
+    <div class="header">
+        <h1>🌺 Ancestor Fan Chart</h1>
+        <p>Root: Reed Grant Hendrickson | Showing predicted missing ancestors</p>
+    </div>
+
+    <div class="legend">
+        <div class="legend-item">
+            <div class="legend-color" style="background: #4a90d9;"></div>
+            <span>Male (Known)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: #d94a7b;"></div>
+            <span>Female (Known)</span>
+        </div>
+        <div class="legend-item">
+            <div class="legend-color" style="background: repeating-linear-gradient(45deg, #ff6b6b, #ff6b6b 2px, transparent 2px, transparent 4px);"></div>
+            <span>Missing (Predicted)</span>
+        </div>
+    </div>
+
+    <div class="chart-container">
+        <svg id="fanchart"></svg>
+    </div>
+
+    <div class="tooltip" style="display: none;"></div>
+
+    <script>
+        const nodes = [{"id": "@I25793510575@", "name": "Reed Grant Hendrickson", "birth_year": 1954, "death_year": 2004, "gender": "M", "generation": 0, "position": 0, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25792158758@", "name": "Grant Hendrickson", "birth_year": 1918, "death_year": 1970, "gender": "M", "generation": 1, "position": 0, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793405197@", "name": "Lylias Irene Mortenson", "birth_year": 1917, "death_year": 2011, "gender": "F", "generation": 1, "position": 1, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245778@", "name": "William Hendrickson", "birth_year": 1888, "death_year": 1939, "gender": "M", "generation": 2, "position": 0, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245793@", "name": "Alvaretta Shaffer", "birth_year": 1887, "death_year": 1982, "gender": "F", "generation": 2, "position": 1, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793510573@", "name": "Emil Mortenson", "birth_year": 1891, "death_year": 1970, "gender": "M", "generation": 2, "position": 2, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25793510573@", "name": "Unknown Father", "birth_year": 1861, "death_year": null, "gender": "M", "generation": 3, "position": 4, "is_missing": true, "is_predicted": true, "missing_probability": 0.9985652565956116, "candidates": [{"id": "@I25777735977@", "name": "Wakine Kona Kaawa Moi", "birth_year": 1854, "score": 0.3}, {"id": "@I25778400307@", "name": "George Alika Hussey", "birth_year": 1862, "score": 0.3}, {"id": "@I25778413738@", "name": "John Kamauoha", "birth_year": 1875, "score": 0.3}]}, {"id": "missing_mother_@I25793510573@", "name": "Unknown Mother", "birth_year": 1863, "death_year": null, "gender": "F", "generation": 3, "position": 5, "is_missing": true, "is_predicted": true, "missing_probability": 0.9939367175102234, "candidates": [{"id": "@I25777736056@", "name": "Jeanette Ka'umekekoi Keawepooole", "birth_year": 1858, "score": 0.3}, {"id": "@I25778415908@", "name": "Elena Kahauelio Hobbs Baptiste Mahoe", "birth_year": 1862, "score": 0.3}, {"id": "@I25778864765@", "name": "Kalunui Hu", "birth_year": 1853, "score": 0.3}]}, {"id": "@I25793510574@", "name": "Hannah Olson", "birth_year": 1888, "death_year": 1953, "gender": "F", "generation": 2, "position": 3, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245770@", "name": "George Washington Hendrickson", "birth_year": 1858, "death_year": 1936, "gender": "M", "generation": 3, "position": 0, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245777@", "name": "Elizabeth Owens", "birth_year": 1859, "death_year": 1935, "gender": "F", "generation": 3, "position": 1, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245785@", "name": "Joseph Kenyon Shaffer", "birth_year": 1857, "death_year": 1916, "gender": "M", "generation": 3, "position": 2, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245792@", "name": "Helen Weaver", "birth_year": 1859, "death_year": 1909, "gender": "F", "generation": 3, "position": 3, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793512082@", "name": "John Olson", "birth_year": 1859, "death_year": null, "gender": "M", "generation": 3, "position": 6, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793512083@", "name": "Mathilda Williamson", "birth_year": 1859, "death_year": 1910, "gender": "F", "generation": 3, "position": 7, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_mother_@I25793512083@", "name": "Unknown Mother", "birth_year": 1831, "death_year": null, "gender": "F", "generation": 4, "position": 15, "is_missing": true, "is_predicted": true, "missing_probability": 0.9373140335083008, "candidates": [{"id": "@I25778416069@", "name": "Abigail Hipa Kihepono", "birth_year": 1829, "score": 0.3}, {"id": "@I25778490035@", "name": "Lydia Mary Mele Hobbs", "birth_year": 1832, "score": 0.3}, {"id": "@I25778490038@", "name": "Margaret \"Makaleka\" Hobbs", "birth_year": 1820, "score": 0.3}]}, {"id": "@I25783245766@", "name": "Nicholas Hendrickson", "birth_year": null, "death_year": 1896, "gender": "M", "generation": 4, "position": 0, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245769@", "name": "Diana Elizabeth Kelsey", "birth_year": 1827, "death_year": 1900, "gender": "F", "generation": 4, "position": 1, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245773@", "name": "William J Owens", "birth_year": null, "death_year": 1874, "gender": "M", "generation": 4, "position": 2, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245776@", "name": "Elizabeth Roberts", "birth_year": 1835, "death_year": 1929, "gender": "F", "generation": 4, "position": 3, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245781@", "name": "Joseph Russel Shaffer", "birth_year": 1820, "death_year": 1901, "gender": "M", "generation": 4, "position": 4, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245784@", "name": "Gilead Taylor", "birth_year": 1830, "death_year": 1901, "gender": "F", "generation": 4, "position": 5, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245788@", "name": "Franklin Weaver", "birth_year": 1828, "death_year": 1884, "gender": "M", "generation": 4, "position": 6, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245791@", "name": "Sarah Bergion Clark", "birth_year": 1831, "death_year": 1910, "gender": "F", "generation": 4, "position": 7, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793512607@", "name": "Martin Olson", "birth_year": 1827, "death_year": null, "gender": "M", "generation": 4, "position": 12, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25793512607@", "name": "Unknown Father", "birth_year": 1797, "death_year": null, "gender": "M", "generation": 5, "position": 24, "is_missing": true, "is_predicted": true, "missing_probability": 0.9980596899986267, "candidates": [{"id": "@I25778489513@", "name": "John HOBBS", "birth_year": 1801, "score": 0.3}, {"id": "@I25778863740@", "name": "Jeremia Kihepono", "birth_year": 1805, "score": 0.3}, {"id": "@I25778864624@", "name": "\u9d7e\u986fKwan Hin \u76e7Loo", "birth_year": 1812, "score": 0.3}]}, {"id": "missing_mother_@I25793512607@", "name": "Unknown Mother", "birth_year": 1799, "death_year": null, "gender": "F", "generation": 5, "position": 25, "is_missing": true, "is_predicted": true, "missing_probability": 0.9971989393234253, "candidates": [{"id": "@I25778863418@", "name": "Kamanalau", "birth_year": 1805, "score": 0.3}, {"id": "@I25778863781@", "name": "Miriam Naahu Nawaakaua", "birth_year": 1809, "score": 0.3}, {"id": "@I25779255912@", "name": "Lydia Emmet Pollard", "birth_year": 1804, "score": 0.3}]}, {"id": "@I25793512608@", "name": "Barin Olson", "birth_year": 1827, "death_year": null, "gender": "F", "generation": 4, "position": 13, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25793512608@", "name": "Unknown Father", "birth_year": 1797, "death_year": null, "gender": "M", "generation": 5, "position": 26, "is_missing": true, "is_predicted": true, "missing_probability": 0.9981643557548523, "candidates": [{"id": "@I25778489513@", "name": "John HOBBS", "birth_year": 1801, "score": 0.3}, {"id": "@I25778863740@", "name": "Jeremia Kihepono", "birth_year": 1805, "score": 0.3}, {"id": "@I25778864624@", "name": "\u9d7e\u986fKwan Hin \u76e7Loo", "birth_year": 1812, "score": 0.3}]}, {"id": "missing_mother_@I25793512608@", "name": "Unknown Mother", "birth_year": 1799, "death_year": null, "gender": "F", "generation": 5, "position": 27, "is_missing": true, "is_predicted": true, "missing_probability": 0.9974028468132019, "candidates": [{"id": "@I25778863418@", "name": "Kamanalau", "birth_year": 1805, "score": 0.3}, {"id": "@I25778863781@", "name": "Miriam Naahu Nawaakaua", "birth_year": 1809, "score": 0.3}, {"id": "@I25779255912@", "name": "Lydia Emmet Pollard", "birth_year": 1804, "score": 0.3}]}, {"id": "@I25793512277@", "name": "Lars Williamson", "birth_year": 1830, "death_year": null, "gender": "M", "generation": 4, "position": 14, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25793512277@", "name": "Unknown Father", "birth_year": 1800, "death_year": null, "gender": "M", "generation": 5, "position": 28, "is_missing": true, "is_predicted": true, "missing_probability": 0.9439146518707275, "candidates": [{"id": "@I25778489513@", "name": "John HOBBS", "birth_year": 1801, "score": 0.3}, {"id": "@I25778863740@", "name": "Jeremia Kihepono", "birth_year": 1805, "score": 0.3}, {"id": "@I25778864624@", "name": "\u9d7e\u986fKwan Hin \u76e7Loo", "birth_year": 1812, "score": 0.3}]}, {"id": "missing_mother_@I25793512277@", "name": "Unknown Mother", "birth_year": 1802, "death_year": null, "gender": "F", "generation": 5, "position": 29, "is_missing": true, "is_predicted": true, "missing_probability": 0.9995299577713013, "candidates": [{"id": "@I25778863418@", "name": "Kamanalau", "birth_year": 1805, "score": 0.3}, {"id": "@I25778863781@", "name": "Miriam Naahu Nawaakaua", "birth_year": 1809, "score": 0.3}, {"id": "@I25779255912@", "name": "Lydia Emmet Pollard", "birth_year": 1804, "score": 0.3}]}, {"id": "@I25783245764@", "name": "Cornelius Mershon Hendrickson", "birth_year": 1796, "death_year": 1869, "gender": "M", "generation": 5, "position": 0, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245765@", "name": "Elizabeth Mary", "birth_year": 1798, "death_year": 1858, "gender": "F", "generation": 5, "position": 1, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245767@", "name": "Samuel Alexander Pagan Kelsey", "birth_year": 1805, "death_year": 1894, "gender": "M", "generation": 5, "position": 2, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245768@", "name": "Jannett Averett", "birth_year": 1809, "death_year": 1887, "gender": "F", "generation": 5, "position": 3, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25783245771@", "name": "John Owen", "birth_year": 1801, "death_year": null, "gender": "M", "generation": 5, "position": 4, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245771@", "name": "Unknown Father", "birth_year": 1771, "death_year": null, "gender": "M", "generation": 6, "position": 8, "is_missing": true, "is_predicted": true, "missing_probability": 0.9984195232391357, "candidates": [{"id": "@I172354046954@", "name": "Archie Owen", "birth_year": null, "score": 0.5}, {"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779270911@", "name": "Abraham Pollard", "birth_year": 1780, "score": 0.3}]}, {"id": "missing_mother_@I25783245771@", "name": "Unknown Mother", "birth_year": 1773, "death_year": null, "gender": "F", "generation": 6, "position": 9, "is_missing": true, "is_predicted": true, "missing_probability": 0.9963493347167969, "candidates": [{"id": "@I25779270665@", "name": "Elizabeth Starbuck", "birth_year": 1783, "score": 0.3}, {"id": "@I25779270912@", "name": "Hannah Gibson", "birth_year": 1783, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "@I25783245772@", "name": "Charlotte Lewis", "birth_year": 1802, "death_year": null, "gender": "F", "generation": 5, "position": 5, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245772@", "name": "Unknown Father", "birth_year": 1772, "death_year": null, "gender": "M", "generation": 6, "position": 10, "is_missing": true, "is_predicted": true, "missing_probability": 0.9980775117874146, "candidates": [{"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779270911@", "name": "Abraham Pollard", "birth_year": 1780, "score": 0.3}, {"id": "@I25779271739@", "name": "Christopher Hussey", "birth_year": 1748, "score": 0.3}]}, {"id": "missing_mother_@I25783245772@", "name": "Unknown Mother", "birth_year": 1774, "death_year": null, "gender": "F", "generation": 6, "position": 11, "is_missing": true, "is_predicted": true, "missing_probability": 0.9980880618095398, "candidates": [{"id": "@I25779270665@", "name": "Elizabeth Starbuck", "birth_year": 1783, "score": 0.3}, {"id": "@I25779270912@", "name": "Hannah Gibson", "birth_year": 1783, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "@I25783245774@", "name": "Hugh Roberts", "birth_year": 1803, "death_year": 1892, "gender": "M", "generation": 5, "position": 6, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245774@", "name": "Unknown Father", "birth_year": 1773, "death_year": null, "gender": "M", "generation": 6, "position": 12, "is_missing": true, "is_predicted": true, "missing_probability": 0.9983463287353516, "candidates": [{"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779270911@", "name": "Abraham Pollard", "birth_year": 1780, "score": 0.3}, {"id": "@I25779271739@", "name": "Christopher Hussey", "birth_year": 1748, "score": 0.3}]}, {"id": "missing_mother_@I25783245774@", "name": "Unknown Mother", "birth_year": 1775, "death_year": null, "gender": "F", "generation": 6, "position": 13, "is_missing": true, "is_predicted": true, "missing_probability": 0.9973142743110657, "candidates": [{"id": "@I25779270665@", "name": "Elizabeth Starbuck", "birth_year": 1783, "score": 0.3}, {"id": "@I25779270912@", "name": "Hannah Gibson", "birth_year": 1783, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "@I25783245775@", "name": "Mary Owens", "birth_year": 1806, "death_year": 1894, "gender": "F", "generation": 5, "position": 7, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245775@", "name": "Unknown Father", "birth_year": 1776, "death_year": null, "gender": "M", "generation": 6, "position": 14, "is_missing": true, "is_predicted": true, "missing_probability": 0.9978475570678711, "candidates": [{"id": "@I25783245773@", "name": "William J Owens", "birth_year": null, "score": 0.5}, {"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779270911@", "name": "Abraham Pollard", "birth_year": 1780, "score": 0.3}]}, {"id": "missing_mother_@I25783245775@", "name": "Unknown Mother", "birth_year": 1778, "death_year": null, "gender": "F", "generation": 6, "position": 15, "is_missing": true, "is_predicted": true, "missing_probability": 0.9971024394035339, "candidates": [{"id": "@I25779270665@", "name": "Elizabeth Starbuck", "birth_year": 1783, "score": 0.3}, {"id": "@I25779270912@", "name": "Hannah Gibson", "birth_year": 1783, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "@I25783245779@", "name": "Henry Michael Shaffer", "birth_year": 1789, "death_year": 1875, "gender": "M", "generation": 5, "position": 8, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245779@", "name": "Unknown Father", "birth_year": 1759, "death_year": null, "gender": "M", "generation": 6, "position": 16, "is_missing": true, "is_predicted": true, "missing_probability": 0.9979931116104126, "candidates": [{"id": "@I25779271739@", "name": "Christopher Hussey", "birth_year": 1748, "score": 0.3}, {"id": "@I25779271742@", "name": "Cyrus Hussey", "birth_year": 1773, "score": 0.3}, {"id": "@I25779272429@", "name": "Thomas Starbuck", "birth_year": 1742, "score": 0.3}]}, {"id": "missing_mother_@I25783245779@", "name": "Unknown Mother", "birth_year": 1761, "death_year": null, "gender": "F", "generation": 6, "position": 17, "is_missing": true, "is_predicted": true, "missing_probability": 0.9963958859443665, "candidates": [{"id": "@I25779271740@", "name": "Lydia Manchester", "birth_year": 1748, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}, {"id": "@I25779271744@", "name": "Amy Hussey", "birth_year": 1771, "score": 0.3}]}, {"id": "@I25783245780@", "name": "Eve Beard", "birth_year": 1789, "death_year": 1856, "gender": "F", "generation": 5, "position": 9, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245780@", "name": "Unknown Father", "birth_year": 1759, "death_year": null, "gender": "M", "generation": 6, "position": 18, "is_missing": true, "is_predicted": true, "missing_probability": 0.998062789440155, "candidates": [{"id": "@I25779271739@", "name": "Christopher Hussey", "birth_year": 1748, "score": 0.3}, {"id": "@I25779271742@", "name": "Cyrus Hussey", "birth_year": 1773, "score": 0.3}, {"id": "@I25779272429@", "name": "Thomas Starbuck", "birth_year": 1742, "score": 0.3}]}, {"id": "missing_mother_@I25783245780@", "name": "Unknown Mother", "birth_year": 1761, "death_year": null, "gender": "F", "generation": 6, "position": 19, "is_missing": true, "is_predicted": true, "missing_probability": 0.997413694858551, "candidates": [{"id": "@I25779271740@", "name": "Lydia Manchester", "birth_year": 1748, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}, {"id": "@I25779271744@", "name": "Amy Hussey", "birth_year": 1771, "score": 0.3}]}, {"id": "@I25783245782@", "name": "Kenyon Taylor", "birth_year": 1796, "death_year": 1857, "gender": "M", "generation": 5, "position": 10, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245782@", "name": "Unknown Father", "birth_year": 1766, "death_year": null, "gender": "M", "generation": 6, "position": 20, "is_missing": true, "is_predicted": true, "missing_probability": 0.9980759620666504, "candidates": [{"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779270911@", "name": "Abraham Pollard", "birth_year": 1780, "score": 0.3}, {"id": "@I25779271739@", "name": "Christopher Hussey", "birth_year": 1748, "score": 0.3}]}, {"id": "missing_mother_@I25783245782@", "name": "Unknown Mother", "birth_year": 1768, "death_year": null, "gender": "F", "generation": 6, "position": 21, "is_missing": true, "is_predicted": true, "missing_probability": 0.9968394041061401, "candidates": [{"id": "@I25779270665@", "name": "Elizabeth Starbuck", "birth_year": 1783, "score": 0.3}, {"id": "@I25779270912@", "name": "Hannah Gibson", "birth_year": 1783, "score": 0.3}, {"id": "@I25779271740@", "name": "Lydia Manchester", "birth_year": 1748, "score": 0.3}]}, {"id": "@I25783245783@", "name": "Esther Trawick", "birth_year": 1794, "death_year": 1845, "gender": "F", "generation": 5, "position": 11, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245783@", "name": "Unknown Father", "birth_year": 1764, "death_year": null, "gender": "M", "generation": 6, "position": 22, "is_missing": true, "is_predicted": true, "missing_probability": 0.9981562495231628, "candidates": [{"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779271739@", "name": "Christopher Hussey", "birth_year": 1748, "score": 0.3}, {"id": "@I25779271742@", "name": "Cyrus Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "missing_mother_@I25783245783@", "name": "Unknown Mother", "birth_year": 1766, "death_year": null, "gender": "F", "generation": 6, "position": 23, "is_missing": true, "is_predicted": true, "missing_probability": 0.9987177848815918, "candidates": [{"id": "@I25779271740@", "name": "Lydia Manchester", "birth_year": 1748, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}, {"id": "@I25779271744@", "name": "Amy Hussey", "birth_year": 1771, "score": 0.3}]}, {"id": "@I25783245786@", "name": "Edward Weaver", "birth_year": 1799, "death_year": 1842, "gender": "M", "generation": 5, "position": 12, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245786@", "name": "Unknown Father", "birth_year": 1769, "death_year": null, "gender": "M", "generation": 6, "position": 24, "is_missing": true, "is_predicted": true, "missing_probability": 0.9980206489562988, "candidates": [{"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779270911@", "name": "Abraham Pollard", "birth_year": 1780, "score": 0.3}, {"id": "@I25779271739@", "name": "Christopher Hussey", "birth_year": 1748, "score": 0.3}]}, {"id": "missing_mother_@I25783245786@", "name": "Unknown Mother", "birth_year": 1771, "death_year": null, "gender": "F", "generation": 6, "position": 25, "is_missing": true, "is_predicted": true, "missing_probability": 0.9959279894828796, "candidates": [{"id": "@I25779270665@", "name": "Elizabeth Starbuck", "birth_year": 1783, "score": 0.3}, {"id": "@I25779270912@", "name": "Hannah Gibson", "birth_year": 1783, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "@I25783245787@", "name": "Martha Raymer", "birth_year": 1804, "death_year": 1849, "gender": "F", "generation": 5, "position": 13, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245787@", "name": "Unknown Father", "birth_year": 1774, "death_year": null, "gender": "M", "generation": 6, "position": 26, "is_missing": true, "is_predicted": true, "missing_probability": 0.9985477328300476, "candidates": [{"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779270911@", "name": "Abraham Pollard", "birth_year": 1780, "score": 0.3}, {"id": "@I25779271742@", "name": "Cyrus Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "missing_mother_@I25783245787@", "name": "Unknown Mother", "birth_year": 1776, "death_year": null, "gender": "F", "generation": 6, "position": 27, "is_missing": true, "is_predicted": true, "missing_probability": 0.9979376792907715, "candidates": [{"id": "@I25779270665@", "name": "Elizabeth Starbuck", "birth_year": 1783, "score": 0.3}, {"id": "@I25779270912@", "name": "Hannah Gibson", "birth_year": 1783, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "@I25783245789@", "name": "Samuel Clark", "birth_year": 1798, "death_year": 1885, "gender": "M", "generation": 5, "position": 14, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245789@", "name": "Unknown Father", "birth_year": 1768, "death_year": null, "gender": "M", "generation": 6, "position": 28, "is_missing": true, "is_predicted": true, "missing_probability": 0.9985613226890564, "candidates": [{"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779270911@", "name": "Abraham Pollard", "birth_year": 1780, "score": 0.3}, {"id": "@I25779271739@", "name": "Christopher Hussey", "birth_year": 1748, "score": 0.3}]}, {"id": "missing_mother_@I25783245789@", "name": "Unknown Mother", "birth_year": 1770, "death_year": null, "gender": "F", "generation": 6, "position": 29, "is_missing": true, "is_predicted": true, "missing_probability": 0.9979137778282166, "candidates": [{"id": "@I25779270665@", "name": "Elizabeth Starbuck", "birth_year": 1783, "score": 0.3}, {"id": "@I25779270912@", "name": "Hannah Gibson", "birth_year": 1783, "score": 0.3}, {"id": "@I25779271740@", "name": "Lydia Manchester", "birth_year": 1748, "score": 0.3}]}, {"id": "@I25783245790@", "name": "Rebecca Garner", "birth_year": 1807, "death_year": 1871, "gender": "F", "generation": 5, "position": 15, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "missing_father_@I25783245790@", "name": "Unknown Father", "birth_year": 1777, "death_year": null, "gender": "M", "generation": 6, "position": 30, "is_missing": true, "is_predicted": true, "missing_probability": 0.9985170960426331, "candidates": [{"id": "@I25779270662@", "name": "Albert Manchester Hussey", "birth_year": 1778, "score": 0.3}, {"id": "@I25779270911@", "name": "Abraham Pollard", "birth_year": 1780, "score": 0.3}, {"id": "@I25779271742@", "name": "Cyrus Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "missing_mother_@I25783245790@", "name": "Unknown Mother", "birth_year": 1779, "death_year": null, "gender": "F", "generation": 6, "position": 31, "is_missing": true, "is_predicted": true, "missing_probability": 0.996498703956604, "candidates": [{"id": "@I25779270665@", "name": "Elizabeth Starbuck", "birth_year": 1783, "score": 0.3}, {"id": "@I25779270912@", "name": "Hannah Gibson", "birth_year": 1783, "score": 0.3}, {"id": "@I25779271743@", "name": "Sally Hussey", "birth_year": 1773, "score": 0.3}]}, {"id": "@I25792158892@", "name": "Nicholas Hendrickson", "birth_year": 1751, "death_year": 1815, "gender": "M", "generation": 6, "position": 0, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25792158907@", "name": "Catherine Mershon", "birth_year": 1753, "death_year": 1806, "gender": "F", "generation": 6, "position": 1, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793781688@", "name": "Rees Thomas", "birth_year": 1770, "death_year": 1808, "gender": "M", "generation": 6, "position": 2, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793781689@", "name": "Margrette Shannon", "birth_year": 1774, "death_year": null, "gender": "F", "generation": 6, "position": 3, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793781554@", "name": "Samuel Kelsey", "birth_year": 1748, "death_year": 1819, "gender": "M", "generation": 6, "position": 4, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793781558@", "name": "Elenor Gill", "birth_year": 1757, "death_year": 1817, "gender": "F", "generation": 6, "position": 5, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793781607@", "name": "John Averett", "birth_year": 1780, "death_year": 1847, "gender": "M", "generation": 6, "position": 6, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}, {"id": "@I25793781615@", "name": "Jennett (Janet) Gill", "birth_year": 1786, "death_year": 1855, "gender": "F", "generation": 6, "position": 7, "is_missing": false, "is_predicted": false, "missing_probability": 0.0, "candidates": []}];
+
+        const width = 900;
+        const height = 900;
+        const centerX = width / 2;
+        const centerY = height / 2;
+        const innerRadius = 60;
+        const radiusStep = 70;
+
+        const svg = d3.select("#fanchart")
+            .attr("width", width)
+            .attr("height", height);
+
+        const g = svg.append("g")
+            .attr("transform", `translate(${centerX}, ${centerY})`);
+
+        const tooltip = d3.select(".tooltip");
+
+        // Group nodes by generation
+        const generations = {};
+        nodes.forEach(node => {
+            if (!generations[node.generation]) {
+                generations[node.generation] = [];
+            }
+            generations[node.generation].push(node);
+        });
+
+        // Sort each generation by position
+        Object.keys(generations).forEach(gen => {
+            generations[gen].sort((a, b) => a.position - b.position);
+        });
+
+        // Draw arcs for each generation
+        Object.keys(generations).forEach(gen => {
+            const genNum = parseInt(gen);
+            const genNodes = generations[gen];
+            const numSlots = Math.pow(2, genNum);
+            const arcAngle = Math.PI / numSlots;
+
+            const inner = innerRadius + genNum * radiusStep;
+            const outer = inner + radiusStep - 5;
+
+            genNodes.forEach((node, i) => {
+                const startAngle = -Math.PI/2 + node.position * arcAngle * 2;
+                const endAngle = startAngle + arcAngle * 2 - 0.02;
+
+                const arc = d3.arc()
+                    .innerRadius(inner)
+                    .outerRadius(outer)
+                    .startAngle(startAngle)
+                    .endAngle(endAngle)
+                    .padAngle(0.01);
+
+                // Determine color
+                let fillColor;
+                if (node.is_missing) {
+                    fillColor = node.gender === 'M' ? '#8b4a4a' : '#8b4a6b';
+                } else {
+                    fillColor = node.gender === 'M' ? '#4a90d9' : '#d94a7b';
+                    if (node.gender === null || node.gender === 'U') {
+                        fillColor = '#6b7b8b';
+                    }
+                }
+
+                const arcGroup = g.append("g")
+                    .attr("class", "arc" + (node.is_missing ? " missing-indicator" : ""));
+
+                // Main arc
+                arcGroup.append("path")
+                    .attr("d", arc)
+                    .attr("fill", fillColor)
+                    .attr("stroke", node.is_missing ? "#ff6b6b" : "rgba(255,255,255,0.3)")
+                    .attr("stroke-width", node.is_missing ? 2 : 1)
+                    .attr("stroke-dasharray", node.is_missing ? "5,3" : "none");
+
+                // Label
+                const midAngle = (startAngle + endAngle) / 2;
+                const labelRadius = (inner + outer) / 2;
+                const labelX = Math.cos(midAngle) * labelRadius;
+                const labelY = Math.sin(midAngle) * labelRadius;
+
+                // Only show labels for first few generations or if there's space
+                if (genNum <= 3 || genNodes.length <= 8) {
+                    const displayName = node.name.length > 15
+                        ? node.name.substring(0, 12) + "..."
+                        : node.name;
+
+                    arcGroup.append("text")
+                        .attr("class", "arc-label")
+                        .attr("x", labelX)
+                        .attr("y", labelY)
+                        .attr("text-anchor", "middle")
+                        .attr("dominant-baseline", "middle")
+                        .attr("transform", `rotate(${midAngle * 180 / Math.PI + 90}, ${labelX}, ${labelY})`)
+                        .text(displayName);
+                }
+
+                // Tooltip interaction
+                arcGroup.on("mouseover", (event) => {
+                    let html = `<h3>${node.name}</h3>`;
+
+                    if (node.birth_year || node.death_year) {
+                        html += `<div class="dates">`;
+                        if (node.birth_year) html += `b. ${node.birth_year}`;
+                        if (node.birth_year && node.death_year) html += ` - `;
+                        if (node.death_year) html += `d. ${node.death_year}`;
+                        html += `</div>`;
+                    }
+
+                    if (node.is_missing) {
+                        html += `<div class="prediction">`;
+                        html += `<strong>⚠️ Missing Ancestor</strong><br>`;
+                        html += `Confidence: ${(node.missing_probability * 100).toFixed(1)}%`;
+                        html += `</div>`;
+
+                        if (node.candidates && node.candidates.length > 0) {
+                            html += `<div class="candidates">`;
+                            html += `<h4>Possible Matches:</h4>`;
+                            node.candidates.forEach(c => {
+                                html += `<div class="candidate">`;
+                                html += `${c.name}`;
+                                if (c.birth_year) html += ` (b. ${c.birth_year})`;
+                                html += `</div>`;
+                            });
+                            html += `</div>`;
+                        }
+                    }
+
+                    tooltip.html(html)
+                        .style("display", "block")
+                        .style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mousemove", (event) => {
+                    tooltip.style("left", (event.pageX + 15) + "px")
+                        .style("top", (event.pageY - 10) + "px");
+                })
+                .on("mouseout", () => {
+                    tooltip.style("display", "none");
+                });
+            });
+        });
+
+        // Center circle with root person
+        const rootNode = nodes.find(n => n.generation === 0);
+        if (rootNode) {
+            g.append("circle")
+                .attr("r", innerRadius - 5)
+                .attr("fill", rootNode.gender === 'M' ? '#4a90d9' : '#d94a7b')
+                .attr("stroke", "#fff")
+                .attr("stroke-width", 2);
+
+            g.append("text")
+                .attr("text-anchor", "middle")
+                .attr("dominant-baseline", "middle")
+                .attr("fill", "#fff")
+                .attr("font-size", "12px")
+                .attr("font-weight", "bold")
+                .text(rootNode.name.length > 20 ? rootNode.name.substring(0, 17) + "..." : rootNode.name);
+        }
+    </script>
+</body>
+</html>
