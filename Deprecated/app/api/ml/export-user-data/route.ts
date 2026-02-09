@@ -43,11 +43,11 @@ export async function POST(request: NextRequest) {
       })
     }
 
-    // Create secure export directory
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-')
+    const exportedIds = newTrainingData.map(item => item.id)
     // Generate secure filename
     const dataHash = createHash('sha256')
-      .update(JSON.stringify(newTrainingData.map(d => d.id)))
+      .update(JSON.stringify(exportedIds))
       .digest('hex')
       .substring(0, 8)
     
@@ -114,6 +114,7 @@ export async function POST(request: NextRequest) {
       exportPath,
       exportUrl,
       blobPath,
+      exportedIds,
       instructions,
       metadata: exportData.metadata
     })

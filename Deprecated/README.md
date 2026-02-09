@@ -136,6 +136,40 @@ Set up a cron job or GitHub Action to periodically:
 2. Retrain the model with updated data
 3. Deploy the improved model
 
+### Mac Polling Agent (Vercel-Friendly)
+
+When deployed on Vercel, run the local Mac agent to poll for training exports,
+download them from Vercel Blob, retrain locally, and mark the data as trained.
+
+1. **Set Vercel env vars**:
+   - `ML_EXPORT_API_KEY` (shared secret)
+   - `BLOB_READ_WRITE_TOKEN` (Vercel Blob token)
+
+2. **Run the agent on your Mac**:
+   ```bash
+   cd /Users/tylergee/Documents/OhanaAI/Deprecated
+   export OHANA_API_BASE="https://your-app.vercel.app"
+   export ML_EXPORT_API_KEY="your-ml-export-api-key"
+   python3 scripts/mac_agent.py --interval 300
+   ```
+
+3. **One-shot mode** (optional):
+   ```bash
+   python3 scripts/mac_agent.py --once
+   ```
+
+4. **TF.js model export (automatic)**:
+   The agent converts the ONNX model to TF.js after every successful training
+   and uploads the TF.js artifacts to Vercel Blob. Ensure the following tools
+   are available in your Python environment:
+   - `onnx-tf`
+   - `tensorflowjs`
+   - `tensorflow` (or `tensorflow-macos` + `tensorflow-metal`)
+
+   If you need a custom conversion pipeline, you can set:
+   - `ONNX_TO_TF_CMD` (default: `onnx-tf convert -i {onnx} -o {saved_model}`)
+   - `TFJS_CONVERTER_CMD` (default: `tensorflowjs_converter --input_format=tf_saved_model --output_format=tfjs_graph_model {saved_model} {tfjs_dir}`)
+
 ## Architecture
 
 ### Data Flow
