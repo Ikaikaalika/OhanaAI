@@ -124,17 +124,26 @@ This phase lays the groundwork for upcoming models that infer not just “is a p
 
 Place the following under \`models/parent_predictor/\`:
 
-- ONNX model: \`model.onnx\`
+- TF.js graph model: \`model.json\` + shard binaries (\`group*.bin\`)
 - Optional metadata: \`training_metadata.json\`, \`training_history.json\`
 
-After placing files, restart the server. The predict API will load the ONNX artifact from this directory.
+Model resolution order at runtime:
+1. \`TFJS_MODEL_URL\` env var (explicit override)
+2. latest \`/api/ml/training-status\` row with \`status=ready|completed\` and \`details.tfjsModelUrl\`
+3. local \`models/parent_predictor/model.json\`
 
 ### Continuous Training
 
 Set up a cron job or GitHub Action to periodically:
 1. Export new training data
-2. Retrain the model with updated data
-3. Deploy the improved model
+2. Retrain locally on MLX
+3. Convert/upload TF.js artifacts
+4. POST \`/api/ml/training-status\` with \`status=ready\` and new \`modelVersion\`
+
+When a \`ready/completed\` status is posted, the app automatically:
+- Refreshes predictions for all processed GEDCOM files
+- Updates stored \`gedcom_files.predictions\` and \`modelVersion\`
+- Sends user update emails (unless \`SEND_MODEL_UPDATE_EMAILS=false\`)
 
 ### Mac Polling Agent (Vercel-Friendly)
 
@@ -174,11 +183,11 @@ download them from Vercel Blob, retrain locally, and mark the data as trained.
 
 ### Data Flow
 
-1. **User uploads GEDCOM** → Parsed and stored in database
-2. **Family tree created** → Relationships extracted and visualized
-3. **ML data prepared** → Graph structure created for training
-4. **Model inference** → Predictions generated for missing parents
-5. **Results displayed** → Interactive family tree with predictions
+1. **User creates account and uploads GEDCOM** → File is parsed, stored in DB, and saved to blob/local storage.
+2. **Tree + ML examples generated** → \`family_trees\` and \`ml_training_data\` are created.
+3. **Initial inference runs** → upload pipeline and \`/api/ml/predict\` generate/store parent predictions from TF.js model.
+4. **Local training loop** → Mac agent polls \`/api/ml/export-user-data\`, downloads batches + source GEDCOM blob files, trains with MLX, converts to TF.js, uploads artifacts.
+5. **Global refresh** → \`/api/ml/training-status\` triggers a refresh for all users and sends update emails.
 
 ### Database Schema
 
@@ -191,8 +200,9 @@ download them from Vercel Blob, retrain locally, and mark the data as trained.
 
 - **Graph Construction**: Convert family trees to graph structures
 - **Feature Engineering**: Extract per-individual feature vectors (12 dims)
-- **Model Training**: MLX MLP exported to ONNX
-- **Inference**: Server-side parent prediction via `onnxruntime-node` in `/api/ml/predict`
+- **Model Training**: MLX model trained locally and exported to ONNX
+- **Model Serving**: ONNX converted to TF.js graph model and uploaded to blob via \`/api/ml/upload-tfjs\`
+- **Inference**: Server-side parent prediction in \`/api/ml/predict\` via TensorFlow.js loader
   - Confidence filtering is controlled via `PREDICTION_CONFIDENCE_THRESHOLD` (default 0.4) and `PREDICTION_MAX_SUGGESTIONS` (optional).
 
 ## API Endpoints
@@ -209,6 +219,10 @@ download them from Vercel Blob, retrain locally, and mark the data as trained.
 ### ML Operations
 - \`POST /api/ml/predict\` - Generate parent predictions
 - \`POST /api/ml/export-training-data\` - Export training data
+- \`POST /api/ml/export-user-data\` - Export pending training rows (+ source GEDCOM blob pointers)
+- \`POST /api/ml/upload-tfjs\` - Upload TF.js model artifacts
+- \`POST /api/ml/training-status\` - Publish training progress/completion (triggers global refresh on ready/completed)
+- \`POST /api/ml/mark-trained\` - Mark exported training IDs as included
 
 ## Local Hosting
 
@@ -241,15 +255,19 @@ Run locally with all data, models, and emails hosted on this device:
    TRAINING_DATA_DIR=training_data     # relative to STORAGE_ROOT if not absolute
    ML_EXPORTS_DIR=exports/ml_training  # where export-user-data writes files
    SYNC_GEDCOM_PROCESSING=true         # block upload response until parsing + inference complete
+   MISSING_PARENT_THRESHOLD=0.5        # minimum threshold to infer a missing parent
    PREDICTION_CONFIDENCE_THRESHOLD=0.4 # minimum confidence for suggested parents
    PREDICTION_MAX_SUGGESTIONS=5        # cap suggestions per missing parent (set 0 for unlimited)
+   TFJS_MODEL_URL=                     # optional explicit TF.js model.json URL
+   TFJS_MODEL_VERSION=                 # optional explicit model version label
+   SEND_MODEL_UPDATE_EMAILS=true       # notify users when global refresh runs
    ```
 
    If you leave these blank the server stores files alongside the app directory (or `/tmp/ohana-ai` on Vercel). All paths are created automatically at runtime.
 
 5) GEDCOM processing
 
-   - By default (`SYNC_GEDCOM_PROCESSING=true`) uploads stay open until parsing, ML data prep, and ONNX inference finish so users can wait for predictions.
+   - By default (`SYNC_GEDCOM_PROCESSING=true`) uploads stay open until parsing, ML data prep, and TF.js inference finish so users can wait for predictions.
    - Set the env to `false` to fall back to the asynchronous queue (`lib/jobs/gedcomProcessor.ts`).
 
 4) Notifications (optional)

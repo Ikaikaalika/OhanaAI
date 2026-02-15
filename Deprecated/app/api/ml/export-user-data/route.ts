@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { mlTrainingData, gedcomFiles } from '@/lib/db/schema'
-import { eq } from 'drizzle-orm'
+import { eq, inArray } from 'drizzle-orm'
 import { writeFile } from 'fs/promises'
 import { join } from 'path'
 import { createHash } from 'crypto'
@@ -9,6 +9,17 @@ import { ensureMlExportsDir, isBlobEnabled } from '@/lib/storage'
 import { put } from '@vercel/blob'
 
 export const runtime = 'nodejs'
+
+type SourceGedcomFile = {
+  id: string
+  originalName: string
+  fileSize: number
+  uploadedAt: Date | string
+  processedAt: Date | string | null
+  blobUrl: string | null
+  blobPath: string | null
+  fileHash: string
+}
 
 // Secure API endpoint for exporting user data to your local machine
 export async function POST(request: NextRequest) {
@@ -56,6 +67,8 @@ export async function POST(request: NextRequest) {
     let exportUrl: string | null = null
     let blobPath: string | null = null
 
+    const sourceFiles = await getSourceGedcomFiles(newTrainingData)
+
     // Prepare export data with metadata if requested
     const exportData = {
       metadata: {
@@ -64,8 +77,18 @@ export async function POST(request: NextRequest) {
         source: 'ohana-ai-production',
         count: newTrainingData.length,
         dataHash,
-        ...(includeMetadata && await getExportMetadata(newTrainingData))
+        ...(includeMetadata && getExportMetadata(sourceFiles))
       },
+      sourceFiles: sourceFiles.map((file) => ({
+        gedcomFileId: file.id,
+        originalName: file.originalName,
+        fileSize: file.fileSize,
+        uploadedAt: normalizeIsoDate(file.uploadedAt),
+        processedAt: normalizeIsoDate(file.processedAt),
+        blobUrl: file.blobUrl,
+        blobPath: file.blobPath,
+        fileHash: file.fileHash
+      })),
       trainingData: newTrainingData.map(item => ({
         id: item.id,
         gedcomFileId: item.gedcomFileId,
@@ -116,7 +139,8 @@ export async function POST(request: NextRequest) {
       blobPath,
       exportedIds,
       instructions,
-      metadata: exportData.metadata
+      metadata: exportData.metadata,
+      sourceFileCount: exportData.sourceFiles.length
     })
 
   } catch (error) {
@@ -128,38 +152,57 @@ export async function POST(request: NextRequest) {
   }
 }
 
-async function getExportMetadata(trainingData: any[]) {
-  try {
-    // Get associated GEDCOM files info (anonymized)
-    const gedcomIds = Array.from(new Set(trainingData.map(d => d.gedcomFileId)))
-    
-    const gedcomInfo = await db
-      .select({
-        id: gedcomFiles.id,
-        fileSize: gedcomFiles.fileSize,
-        uploadedAt: gedcomFiles.uploadedAt,
-        processedAt: gedcomFiles.processedAt,
-        userId: gedcomFiles.userId
-      })
-      .from(gedcomFiles)
-      .where(eq(gedcomFiles.id, gedcomIds[0])) // Sample just to avoid exposing too much data
+async function getSourceGedcomFiles(trainingData: Array<{ gedcomFileId: string }>): Promise<SourceGedcomFile[]> {
+  const gedcomIds = Array.from(new Set(trainingData.map((item) => item.gedcomFileId).filter(Boolean)))
+  if (!gedcomIds.length) return []
 
-    // Anonymized statistics
-    return {
-      uniqueGedcomFiles: gedcomIds.length,
-      totalFileSize: gedcomInfo.reduce((sum, file) => sum + file.fileSize, 0),
-      dateRange: {
-        earliest: gedcomInfo.reduce((earliest: Date | null, file) => 
-          !earliest || file.uploadedAt < earliest ? file.uploadedAt : earliest, null as Date | null),
-        latest: gedcomInfo.reduce((latest: Date | null, file) => 
-          !latest || file.uploadedAt > latest ? file.uploadedAt : latest, null as Date | null)
-      },
-      averageProcessingTime: 'anonymized' // Don't expose timing data
-    }
-  } catch (error) {
-    console.error('Error getting metadata:', error)
-    return {}
+  const rows = await db
+    .select({
+      id: gedcomFiles.id,
+      originalName: gedcomFiles.originalName,
+      fileSize: gedcomFiles.fileSize,
+      uploadedAt: gedcomFiles.uploadedAt,
+      processedAt: gedcomFiles.processedAt,
+      blobUrl: gedcomFiles.blobUrl,
+      blobPath: gedcomFiles.blobPath,
+      fileHash: gedcomFiles.fileHash
+    })
+    .from(gedcomFiles)
+    .where(inArray(gedcomFiles.id, gedcomIds))
+
+  return rows
+}
+
+function getExportMetadata(sourceFiles: SourceGedcomFile[]) {
+  const uploadedAts = sourceFiles
+    .map((file) => parseTime(file.uploadedAt))
+    .filter((value): value is number => value !== null)
+  const earliest = uploadedAts.length ? new Date(Math.min(...uploadedAts)).toISOString() : null
+  const latest = uploadedAts.length ? new Date(Math.max(...uploadedAts)).toISOString() : null
+
+  return {
+    uniqueGedcomFiles: sourceFiles.length,
+    totalFileSize: sourceFiles.reduce((sum, file) => sum + (file.fileSize || 0), 0),
+    dateRange: {
+      earliest,
+      latest
+    },
+    averageProcessingTime: 'anonymized'
   }
+}
+
+function parseTime(value: Date | string | null) {
+  if (!value) return null
+  if (value instanceof Date) {
+    return Number.isFinite(value.getTime()) ? value.getTime() : null
+  }
+  const parsed = new Date(value).getTime()
+  return Number.isFinite(parsed) ? parsed : null
+}
+
+function normalizeIsoDate(value: Date | string | null) {
+  const parsed = parseTime(value)
+  return parsed === null ? null : new Date(parsed).toISOString()
 }
 
 function generateTrainingInstructions(
@@ -224,7 +267,7 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url)
     const key = searchParams.get('key')
-    const filename = request.url.split('/').pop()?.split('?')[0]
+    const filename = searchParams.get('filename')
 
     if (key !== process.env.ML_EXPORT_API_KEY || !filename) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })

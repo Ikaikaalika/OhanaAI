@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 import { db } from '@/lib/db'
 import { mlTrainingStatus } from '@/lib/db/schema'
 import { desc } from 'drizzle-orm'
+import { enqueueGlobalModelRefresh } from '@/lib/jobs/modelRefresh'
 
 export const runtime = 'nodejs'
 
@@ -13,12 +14,23 @@ export async function POST(request: NextRequest) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 })
     }
 
+    const normalizedStatus = String(status || '')
+    const normalizedModelVersion = modelVersion ? String(modelVersion) : null
+
     await db.insert(mlTrainingStatus).values({
-      status: String(status || ''),
+      status: normalizedStatus,
       message: message ? String(message) : null,
-      modelVersion: modelVersion ? String(modelVersion) : null,
+      modelVersion: normalizedModelVersion,
       details: details ? details : null,
     })
+
+    const statusLower = normalizedStatus.toLowerCase()
+    if (statusLower === 'ready' || statusLower === 'completed') {
+      enqueueGlobalModelRefresh({
+        trigger: `training-status:${statusLower}`,
+        modelVersion: normalizedModelVersion
+      })
+    }
 
     return NextResponse.json({ ok: true })
   } catch (error) {

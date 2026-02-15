@@ -6,7 +6,11 @@
     "lib": "lib"
   },
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "dev": "npm --prefix Deprecated run dev",
+    "build": "npm --prefix Deprecated run build",
+    "start": "npm --prefix Deprecated run start",
+    "lint": "npm --prefix Deprecated run lint",
+    "test": "npm --prefix Deprecated run lint"
   },
   "repository": {
     "type": "git",

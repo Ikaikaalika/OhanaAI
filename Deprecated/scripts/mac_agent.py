@@ -60,6 +60,42 @@ def _write_training_batch(payload: Dict[str, Any], data_dir: Path) -> Path:
     return out_path
 
 
+def _sanitize_filename(value: str) -> str:
+    safe = "".join(ch if ch.isalnum() or ch in ("-", "_", ".") else "_" for ch in value)
+    return safe.strip("._") or "source.ged"
+
+
+def _download_source_gedcoms(payload: Dict[str, Any], data_dir: Path) -> list[Path]:
+    source_files = payload.get("sourceFiles")
+    if not isinstance(source_files, list):
+        return []
+
+    source_dir = data_dir / "source_gedcom"
+    source_dir.mkdir(parents=True, exist_ok=True)
+
+    downloaded: list[Path] = []
+    for entry in source_files:
+        if not isinstance(entry, dict):
+            continue
+
+        blob_url = entry.get("blobUrl")
+        if not blob_url:
+            continue
+
+        gedcom_id = str(entry.get("gedcomFileId") or "unknown")
+        original_name = str(entry.get("originalName") or "source.ged")
+        safe_name = _sanitize_filename(original_name)
+        destination = source_dir / f"{gedcom_id}_{safe_name}"
+
+        try:
+            _download(blob_url, destination, timeout=180)
+            downloaded.append(destination)
+        except Exception as e:
+            print(f"[agent] failed to download GEDCOM source {gedcom_id}: {e}")
+
+    return downloaded
+
+
 def _run_training(cmd: list[str], cwd: Path) -> int:
     proc = subprocess.run(cmd, cwd=str(cwd))
     return proc.returncode
@@ -199,9 +235,10 @@ def poll_once(
     export_url = f"{base_url.rstrip('/')}/api/ml/export-user-data"
     status_url = f"{base_url.rstrip('/')}/api/ml/training-status"
     mark_url = f"{base_url.rstrip('/')}/api/ml/mark-trained"
+    source_gedcom_files: list[Path] = []
 
     try:
-        response = _post_json(export_url, {"apiKey": api_key})
+        response = _post_json(export_url, {"apiKey": api_key, "includeMetadata": True})
     except error.HTTPError as e:
         print(f"[agent] export request failed: {e}")
         return False
@@ -239,6 +276,9 @@ def poll_once(
     try:
         payload = _load_export(local_export)
         training_batch = _write_training_batch(payload, data_dir)
+        source_gedcom_files = _download_source_gedcoms(payload, data_dir)
+        if source_gedcom_files:
+            print(f"[agent] downloaded {len(source_gedcom_files)} GEDCOM source file(s)")
     except Exception as e:
         print(f"[agent] failed to prepare training batch: {e}")
         return False
@@ -257,7 +297,8 @@ def poll_once(
             "message": "Training started",
             "details": {
                 "batchFile": str(training_batch),
-                "count": response.get("count", 0)
+                "count": response.get("count", 0),
+                "sourceGedcomFiles": len(source_gedcom_files)
             }
         })
     except Exception:
@@ -328,9 +369,10 @@ def poll_once(
             "message": "Training complete",
             "modelVersion": model_version,
             "details": {
-                "tfjsModelUrl": tfjs_model_url,
-                "tfjsFiles": uploaded_files
-            } if tfjs_enabled else None
+                "sourceGedcomFiles": len(source_gedcom_files),
+                "tfjsModelUrl": tfjs_model_url if tfjs_enabled else None,
+                "tfjsFiles": uploaded_files if tfjs_enabled else []
+            }
         })
     except Exception:
         pass

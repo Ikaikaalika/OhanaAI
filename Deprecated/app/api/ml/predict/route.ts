@@ -4,7 +4,7 @@ import { authOptions } from '@/lib/auth/config'
 import { db } from '@/lib/db'
 import { gedcomFiles, familyTrees } from '@/lib/db/schema'
 import { eq, and } from 'drizzle-orm'
-import { loadModel, runInference } from '@/lib/ml/inference'
+import { getLoadedModelVersion, loadModel, runInference } from '@/lib/ml/inference'
 import { sendEmail, formatAdminEmail } from '@/lib/email/mailer'
 
 export const runtime = 'nodejs'
@@ -95,10 +95,12 @@ export async function POST(request: NextRequest) {
       })
     }
 
+    const modelVersion = getLoadedModelVersion() || file[0].modelVersion || 'heuristic-v2'
+
     await db.update(gedcomFiles)
       .set({ 
         predictions: updatedPredictions,
-        modelVersion: 'v1.0' // Update this based on actual model version
+        modelVersion
       })
       .where(eq(gedcomFiles.id, gedcomFileId))
 
@@ -120,6 +122,7 @@ export async function POST(request: NextRequest) {
 
     return NextResponse.json({
       predictions,
+      modelVersion,
       modelStatus: 'ready',
       message: 'Predictions generated successfully'
     })

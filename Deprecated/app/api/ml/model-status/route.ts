@@ -1,12 +1,9 @@
 import { NextResponse } from 'next/server'
-import { join } from 'path'
-import { existsSync } from 'fs'
+import { getModelStatus } from '@/lib/ml/inference'
 
 export const runtime = 'nodejs'
 
 export async function GET() {
-  const modelPath = join(process.cwd(), 'models', 'parent_predictor', 'model.json')
-  const present = existsSync(modelPath)
-  return NextResponse.json({ present, path: present ? modelPath : null })
+  const status = await getModelStatus()
+  return NextResponse.json(status)
 }
-
